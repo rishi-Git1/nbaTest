@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NBA Active Player Stats</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main>
+      <h1>NBA Active Player Stats</h1>
+      <p>Sortable stats for active players powered by <code>nba_api</code>.</p>
+
+      <form id="controls">
+        <label>
+          Season
+          <input id="season" name="season" value="{{ default_season }}" />
+        </label>
+
+        <label>
+          Sort by
+          <select id="sort_by" name="sort_by">
+            {% for key in sort_keys %}
+            <option value="{{ key }}" {% if key == 'ppg' %}selected{% endif %}>{{ key }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label>
+          Order
+          <select id="order" name="order">
+            <option value="desc" selected>desc</option>
+            <option value="asc">asc</option>
+          </select>
+        </label>
+
+        <button type="submit">Load</button>
+      </form>
+
+      <p id="status">Loading...</p>
+
+      <div class="table-wrap">
+        <table id="results">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>Team</th>
+              <th>GP</th>
+              <th>PPG</th>
+              <th>RPG</th>
+              <th>APG</th>
+              <th>SPG</th>
+              <th>BPG</th>
+              <th>+/-</th>
+              <th>FG%</th>
+              <th>TS%</th>
+              <th>FT%</th>
+              <th>Fouls/G</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
