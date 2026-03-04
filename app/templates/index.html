@@ -8,33 +8,36 @@
   </head>
   <body>
     <main>
-      <h1>NBA Active Player Stats</h1>
+      <div class="top-row">
+        <h1>NBA Active Player Stats</h1>
+        <a class="nav-button" href="/head-to-head">TEAM HEAD-TO-HEAD</a>
+      </div>
       <p>Sortable stats for active players powered by <code>nba_api</code>.</p>
 
       <form id="controls">
         <label>
-          Season
+          SEASON
           <input id="season" name="season" value="{{ default_season }}" />
         </label>
 
         <label>
-          Sort by
+          SORT BY
           <select id="sort_by" name="sort_by">
-            {% for key in sort_keys %}
-            <option value="{{ key }}" {% if key == 'ppg' %}selected{% endif %}>{{ key }}</option>
+            {% for option in sort_options %}
+            <option value="{{ option.key }}" {% if option.key == 'ppg' %}selected{% endif %}>{{ option.label }}</option>
             {% endfor %}
           </select>
         </label>
 
         <label>
-          Order
+          ORDER
           <select id="order" name="order">
-            <option value="desc" selected>desc</option>
-            <option value="asc">asc</option>
+            <option value="desc" selected>DESCENDING</option>
+            <option value="asc">ASCENDING</option>
           </select>
         </label>
 
-        <button type="submit">Load</button>
+        <button type="submit">LOAD</button>
       </form>
 
       <p id="status">Loading...</p>
@@ -43,8 +46,8 @@
         <table id="results">
           <thead>
             <tr>
-              <th>Player</th>
-              <th>Team</th>
+              <th>PLAYER</th>
+              <th>TEAM</th>
               <th>GP</th>
               <th>PPG</th>
               <th>RPG</th>
@@ -55,7 +58,7 @@
               <th>FG%</th>
               <th>TS%</th>
               <th>FT%</th>
-              <th>Fouls/G</th>
+              <th>FOULS/G</th>
             </tr>
           </thead>
           <tbody></tbody>

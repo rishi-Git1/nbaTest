@@ -6,7 +6,7 @@ body {
 }
 
 main {
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 24px;
 }
@@ -15,7 +15,27 @@ h1 {
   margin-bottom: 8px;
 }
 
-#controls {
+.top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.nav-button {
+  text-decoration: none;
+  font-weight: 700;
+  color: #fff;
+  background: #1f6feb;
+  border: 1px solid #3d8bfd;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+}
+
+#controls,
+#h2h-controls {
   display: flex;
   gap: 12px;
   align-items: end;
@@ -26,12 +46,23 @@ h1 {
 label {
   display: grid;
   gap: 4px;
+  font-size: 12px;
+  letter-spacing: 0.4px;
 }
 
 input,
 select,
 button {
-  padding: 6px 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #30363d;
+  background: #161b22;
+  color: #e6edf3;
+}
+
+button {
+  cursor: pointer;
+  font-weight: 700;
 }
 
 .table-wrap {
@@ -40,7 +71,9 @@ button {
   border-radius: 8px;
 }
 
-#results {
+#results,
+.players-table,
+.mini-table {
   width: 100%;
   border-collapse: collapse;
   background: #161b22;
@@ -58,4 +91,33 @@ td:first-child,
 th:nth-child(2),
 td:nth-child(2) {
   text-align: left;
+}
+
+.comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.card {
+  border: 1px solid #30363d;
+  border-radius: 10px;
+  padding: 14px;
+  background: #0f1520;
+}
+
+.card h2,
+.card h3 {
+  margin-top: 0;
+}
+
+@media (max-width: 960px) {
+  .comparison-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .top-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }

@@ -4,11 +4,34 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.models import PlayerStatsResponse
-from app.services import ALLOWED_SORT_KEYS, get_active_player_stats, get_current_season, sort_rows
+from app.services import (
+    ALLOWED_SORT_KEYS,
+    get_active_player_stats,
+    get_current_season,
+    get_team_vs_team,
+    get_teams_directory,
+    sort_rows,
+)
 
 app = FastAPI(title="NBA Active Player Stats")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+
+SORT_LABELS = {
+    "player_name": "PLAYER NAME",
+    "team": "TEAM",
+    "gp": "GAMES PLAYED",
+    "ppg": "POINTS PER GAME (PPG)",
+    "rpg": "REBOUNDS PER GAME (RPG)",
+    "apg": "ASSISTS PER GAME (APG)",
+    "spg": "STEALS PER GAME (SPG)",
+    "bpg": "BLOCKS PER GAME (BPG)",
+    "plus_minus": "PLUS/MINUS",
+    "fg_pct": "FIELD GOAL % (FG%)",
+    "ts_pct": "TRUE SHOOTING % (TS%)",
+    "ft_pct": "FREE THROW % (FT%)",
+    "pf_pg": "FOULS PER GAME",
+}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -18,7 +41,19 @@ def index(request: Request):
         {
             "request": request,
             "default_season": get_current_season(),
-            "sort_keys": sorted(ALLOWED_SORT_KEYS),
+            "sort_options": [{"key": key, "label": SORT_LABELS.get(key, key.upper())} for key in sorted(ALLOWED_SORT_KEYS)],
+        },
+    )
+
+
+@app.get("/head-to-head", response_class=HTMLResponse)
+def head_to_head_page(request: Request):
+    return templates.TemplateResponse(
+        "head_to_head.html",
+        {
+            "request": request,
+            "default_season": get_current_season(),
+            "teams": get_teams_directory(),
         },
     )
 
@@ -52,3 +87,17 @@ def list_players(
         },
         "data": paged,
     }
+
+
+@app.get("/api/head-to-head")
+def head_to_head(
+    season: str = Query(default_factory=get_current_season),
+    team1_id: int = Query(..., ge=1),
+    team2_id: int = Query(..., ge=1),
+):
+    try:
+        return get_team_vs_team(season=season, team1_id=team1_id, team2_id=team2_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Upstream data fetch failed: {exc}") from exc

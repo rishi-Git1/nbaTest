@@ -48,6 +48,16 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\.venv\Scripts\Activate.ps1
 ```
 
+
+## New in this update
+
+- Added a **Team Head-to-Head page** at `/head-to-head` with:
+  - Team selector controls
+  - Team-level per-game comparison metrics
+  - Active-player lists for each selected team
+- Added top-right navigation buttons between the Players page and Head-to-Head page.
+- Updated search/sort UI labels to a more professional uppercase style.
+
 ## API
 
 ### `GET /api/players`
