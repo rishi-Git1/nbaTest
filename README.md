@@ -52,7 +52,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ## New in this update
 
 - Added a **Team Head-to-Head page** at `/head-to-head` with:
-  - Team selector controls
+  - Team + season selector controls (each team can use a different season)
   - Team-level per-game comparison metrics
   - Active-player lists for each selected team
 - Added top-right navigation buttons between the Players page and Head-to-Head page.
@@ -82,3 +82,15 @@ curl "http://127.0.0.1:8000/api/players?season=2024-25&sort_by=ppg&order=desc&li
 - Env var: `NBA_CACHE_TTL_SECONDS` (default `900`)
 - Keyed by `(season, dataset)`
 - Returns stale cached data if live upstream fetch fails.
+
+
+### `GET /api/head-to-head`
+
+Query parameters:
+
+- `season_1` (team 1 season)
+- `team1_id`
+- `season_2` (team 2 season)
+- `team2_id`
+
+Includes team-level comparisons with winner indicators in the UI. For `FOULS/G`, `TOV/G`, and `DEF RATING`, lower values are treated as better.

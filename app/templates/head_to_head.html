@@ -12,12 +12,16 @@
         <h1>NBA Team Head-to-Head</h1>
         <a class="nav-button" href="/">BACK TO PLAYERS</a>
       </div>
-      <p>Compare two teams and view team-level + player-level per-game stats.</p>
+      <p>Compare two teams (including different seasons) and view team + player per-game stats.</p>
 
       <form id="h2h-controls">
         <label>
-          SEASON
-          <input id="season" name="season" value="{{ default_season }}" />
+          TEAM 1 SEASON
+          <select id="season_1" name="season_1" required>
+            {% for season in seasons %}
+            <option value="{{ season }}" {% if season == default_season %}selected{% endif %}>{{ season }}</option>
+            {% endfor %}
+          </select>
         </label>
 
         <label>
@@ -25,6 +29,15 @@
           <select id="team1_id" name="team1_id" required>
             {% for team in teams %}
             <option value="{{ team.id }}">{{ team.full_name.upper() }} ({{ team.abbreviation }})</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label>
+          TEAM 2 SEASON
+          <select id="season_2" name="season_2" required>
+            {% for season in seasons %}
+            <option value="{{ season }}" {% if loop.index == 2 %}selected{% endif %}>{{ season }}</option>
             {% endfor %}
           </select>
         </label>
@@ -41,8 +54,9 @@
         <button type="submit">COMPARE</button>
       </form>
 
-      <p id="h2h-status">Select teams to compare.</p>
+      <p id="h2h-status">Select teams and seasons to compare.</p>
 
+      <section id="team-summary" class="table-wrap"></section>
       <section class="comparison-grid" id="comparison-grid"></section>
     </main>
 

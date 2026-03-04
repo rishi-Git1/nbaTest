@@ -62,6 +62,12 @@ def get_current_season() -> str:
     return f"{start_year}-{str(start_year + 1)[-2:]}"
 
 
+def get_recent_seasons(count: int = 12) -> list[str]:
+    current = get_current_season()
+    start = int(current.split("-")[0])
+    return [f"{year}-{str(year + 1)[-2:]}" for year in range(start, start - count, -1)]
+
+
 def _fetch_per_game_stats(season: str) -> list[dict[str, Any]]:
     endpoint = leaguedashplayerstats.LeagueDashPlayerStats(
         season=season,
@@ -183,61 +189,91 @@ def get_active_player_stats(season: str) -> list[dict[str, Any]]:
         raise
 
 
-def get_team_vs_team(season: str, team1_id: int, team2_id: int) -> dict[str, Any]:
-    if team1_id == team2_id:
-        raise ValueError("Please select two different teams.")
+def _team_summary_for_season(team_id: int, season: str) -> dict[str, Any]:
+    base_key = (season, "team_base_stats")
+    adv_key = (season, "team_adv_stats")
 
-    key = (season, f"head_to_head:{team1_id}:{team2_id}")
+    base_rows = cache.get(base_key)
+    adv_rows = cache.get(adv_key)
+
+    if base_rows is None:
+        base_rows = _fetch_team_base_stats(season)
+        cache.set(base_key, base_rows)
+
+    if adv_rows is None:
+        adv_rows = _fetch_team_advanced_stats(season)
+        cache.set(adv_key, adv_rows)
+
+    teams_by_id = {int(t["id"]): t for t in get_teams_directory()}
+    team_base_by_id = {int(row["TEAM_ID"]): row for row in base_rows}
+    team_adv_by_id = {int(row["TEAM_ID"]): row for row in adv_rows}
+
+    base = team_base_by_id.get(team_id)
+    if not base:
+        raise ValueError(f"No team stats found for team_id={team_id} in season {season}.")
+
+    adv = team_adv_by_id.get(team_id, {})
+    info = teams_by_id.get(team_id, {"full_name": f"TEAM {team_id}", "abbreviation": "N/A"})
+
+    return {
+        "team_id": team_id,
+        "season": season,
+        "team_name": info["full_name"],
+        "abbreviation": info["abbreviation"],
+        "gp": int(base.get("GP", 0)) if base.get("GP") is not None else None,
+        "ppg": _normalize_float(base.get("PTS")),
+        "rpg": _normalize_float(base.get("REB")),
+        "apg": _normalize_float(base.get("AST")),
+        "spg": _normalize_float(base.get("STL")),
+        "bpg": _normalize_float(base.get("BLK")),
+        "plus_minus": _normalize_float(base.get("PLUS_MINUS")),
+        "fg_pct": _normalize_float(base.get("FG_PCT")),
+        "ts_pct": _normalize_float(adv.get("TS_PCT")),
+        "ft_pct": _normalize_float(base.get("FT_PCT")),
+        "pf_pg": _normalize_float(base.get("PF")),
+        "tov_pg": _normalize_float(base.get("TOV")),
+        "off_rating": _normalize_float(adv.get("OFF_RATING")),
+        "def_rating": _normalize_float(adv.get("DEF_RATING")),
+    }
+
+
+def get_team_vs_team(season1: str, team1_id: int, season2: str, team2_id: int) -> dict[str, Any]:
+    key = (season1 + ":" + season2, f"head_to_head:{team1_id}:{team2_id}")
     cached = cache.get(key)
     if cached is not None:
         return cached
 
     try:
-        team_base = _fetch_team_base_stats(season)
-        team_adv = _fetch_team_advanced_stats(season)
-        players_all = get_active_player_stats(season)
+        team_1_summary = _team_summary_for_season(team_id=team1_id, season=season1)
+        team_2_summary = _team_summary_for_season(team_id=team2_id, season=season2)
 
-        teams_by_id = {int(t["id"]): t for t in get_teams_directory()}
-        team_base_by_id = {int(row["TEAM_ID"]): row for row in team_base}
-        team_adv_by_id = {int(row["TEAM_ID"]): row for row in team_adv}
+        players_team_1 = [row for row in get_active_player_stats(season1) if row.get("team_id") == team1_id]
+        players_team_2 = [row for row in get_active_player_stats(season2) if row.get("team_id") == team2_id]
 
-        def team_summary(team_id: int) -> dict[str, Any]:
-            base = team_base_by_id.get(team_id)
-            if not base:
-                raise ValueError(f"No team stats found for team_id={team_id} in season {season}.")
-            adv = team_adv_by_id.get(team_id, {})
-            info = teams_by_id.get(team_id, {"full_name": f"TEAM {team_id}", "abbreviation": "N/A"})
-            return {
-                "team_id": team_id,
-                "team_name": info["full_name"],
-                "abbreviation": info["abbreviation"],
-                "gp": int(base.get("GP", 0)) if base.get("GP") is not None else None,
-                "ppg": _normalize_float(base.get("PTS")),
-                "rpg": _normalize_float(base.get("REB")),
-                "apg": _normalize_float(base.get("AST")),
-                "spg": _normalize_float(base.get("STL")),
-                "bpg": _normalize_float(base.get("BLK")),
-                "plus_minus": _normalize_float(base.get("PLUS_MINUS")),
-                "fg_pct": _normalize_float(base.get("FG_PCT")),
-                "ts_pct": _normalize_float(adv.get("TS_PCT")),
-                "ft_pct": _normalize_float(base.get("FT_PCT")),
-                "pf_pg": _normalize_float(base.get("PF")),
-            }
-
-        def team_players(team_id: int) -> list[dict[str, Any]]:
-            rows = [row for row in players_all if row.get("team_id") == team_id]
-            return sorted(rows, key=lambda r: (r.get("ppg") is None, -(r.get("ppg") or 0), r.get("player_name", "")))
+        players_team_1 = sorted(
+            players_team_1,
+            key=lambda r: (r.get("ppg") is None, -(r.get("ppg") or 0), r.get("player_name", "")),
+        )
+        players_team_2 = sorted(
+            players_team_2,
+            key=lambda r: (r.get("ppg") is None, -(r.get("ppg") or 0), r.get("player_name", "")),
+        )
 
         payload = {
-            "meta": {"season": season, "team1_id": team1_id, "team2_id": team2_id},
-            "team_1": {"summary": team_summary(team1_id), "players": team_players(team1_id)},
-            "team_2": {"summary": team_summary(team2_id), "players": team_players(team2_id)},
+            "meta": {
+                "season_1": season1,
+                "season_2": season2,
+                "team1_id": team1_id,
+                "team2_id": team2_id,
+            },
+            "team_1": {"summary": team_1_summary, "players": players_team_1},
+            "team_2": {"summary": team_2_summary, "players": players_team_2},
         }
         cache.set(key, payload)
         return payload
     except Exception as exc:  # noqa: BLE001
         print(
-            f"[nba_stats] head_to_head failed season={season} team1={team1_id} team2={team2_id}: "
+            f"[nba_stats] head_to_head failed season1={season1} team1={team1_id} season2={season2} team2={team2_id}: "
             f"{type(exc).__name__}: {exc}"
         )
         stale = cache.get_stale(key)

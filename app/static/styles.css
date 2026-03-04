@@ -121,3 +121,40 @@ td:nth-child(2) {
     flex-direction: column;
   }
 }
+
+
+#team-summary {
+  margin: 10px 0 16px;
+}
+
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #161b22;
+}
+
+.summary-table th,
+.summary-table td {
+  padding: 8px;
+  border-bottom: 1px solid #30363d;
+}
+
+.summary-table .metric-col {
+  text-align: left;
+  font-weight: 700;
+}
+
+.summary-table .team-col {
+  text-align: right;
+}
+
+.summary-table .team-col.winner {
+  color: #7ee787;
+  font-weight: 700;
+}
+
+.arrow {
+  display: inline-block;
+  width: 14px;
+  margin-right: 6px;
+}
