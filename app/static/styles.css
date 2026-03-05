@@ -158,3 +158,17 @@ td:nth-child(2) {
   width: 14px;
   margin-right: 6px;
 }
+
+
+.top-scrollbar {
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin-bottom: 8px;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  background: #161b22;
+}
+
+#results-top-scroll-inner {
+  height: 12px;
+}

@@ -4,6 +4,9 @@ const statusEl = document.getElementById("status");
 const sortSelect = document.getElementById("sort_by");
 const headerRow = document.getElementById("results-header-row");
 const advancedToggleBtn = document.getElementById("advanced-toggle");
+const resultsWrap = document.getElementById("results-wrap");
+const topScroll = document.getElementById("results-top-scroll");
+const topScrollInner = document.getElementById("results-top-scroll-inner");
 
 const BASE_COLUMNS = [
   { key: "player_name", label: "PLAYER" },
@@ -69,6 +72,31 @@ function renderSortOptions() {
   sortSelect.value = preferred;
 }
 
+
+function syncTopScrollbarWidth() {
+  const table = document.getElementById("results");
+  topScrollInner.style.width = `${table.scrollWidth}px`;
+}
+
+function syncScrollbars() {
+  let syncingFromTop = false;
+  let syncingFromBottom = false;
+
+  topScroll.addEventListener("scroll", () => {
+    if (syncingFromBottom) return;
+    syncingFromTop = true;
+    resultsWrap.scrollLeft = topScroll.scrollLeft;
+    syncingFromTop = false;
+  });
+
+  resultsWrap.addEventListener("scroll", () => {
+    if (syncingFromTop) return;
+    syncingFromBottom = true;
+    topScroll.scrollLeft = resultsWrap.scrollLeft;
+    syncingFromBottom = false;
+  });
+}
+
 function renderRows(rows) {
   const columns = currentColumns();
   tbody.innerHTML = "";
@@ -90,6 +118,7 @@ async function loadData() {
     }
     const payload = await res.json();
     renderRows(payload.data);
+    syncTopScrollbarWidth();
     statusEl.textContent = `Loaded ${payload.data.length} players (total ${payload.meta.total}) for ${payload.meta.season}`;
   } catch (error) {
     statusEl.textContent = `Failed to load data: ${error}`;
@@ -111,4 +140,6 @@ form.addEventListener("submit", (e) => {
 
 renderHeader();
 renderSortOptions();
+syncScrollbars();
+window.addEventListener("resize", syncTopScrollbarWidth);
 loadData();
