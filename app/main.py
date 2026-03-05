@@ -33,6 +33,22 @@ SORT_LABELS = {
     "ft_pct": "FREE THROW % (FT%)",
     "three_pt_pct": "3-POINT % (3P%)",
     "pf_pg": "FOULS PER GAME",
+    "mpg": "MINUTES PER GAME (MPG)",
+    "off_rating": "OFFENSIVE RATING",
+    "def_rating": "DEFENSIVE RATING",
+    "net_rating": "NET RATING",
+    "ast_pct": "ASSIST %",
+    "oreb_pct": "OFF REB %",
+    "dreb_pct": "DEF REB %",
+    "reb_pct": "TOTAL REB %",
+    "stl_pct": "STEAL %",
+    "blk_pct": "BLOCK %",
+    "tov_pct": "TURNOVER %",
+    "usg_pct": "USAGE %",
+    "efg_pct": "EFFECTIVE FG %",
+    "three_par": "3PA RATE (3PAr)",
+    "ftr": "FT RATE (FTr)",
+    "pie": "PIE",
 }
 
 

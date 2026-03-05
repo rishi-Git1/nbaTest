@@ -18,6 +18,7 @@ const METRICS = [
   { key: "tov_pg", label: "TOV/G", lowerIsBetter: true },
   { key: "off_rating", label: "OFF RATING", lowerIsBetter: false },
   { key: "def_rating", label: "DEF RATING", lowerIsBetter: true },
+  { key: "team_record", compareKey: "win_pct", label: "RECORD", lowerIsBetter: false },
 ];
 
 function fmt(value) {
@@ -46,18 +47,20 @@ function indicator(winner, side) {
 
 function renderTeamSummary(team1, team2) {
   const rows = METRICS.map((metric) => {
-    const v1 = team1[metric.key];
-    const v2 = team2[metric.key];
-    const winner = winnerForMetric(v1, v2, metric.lowerIsBetter);
+    const displayV1 = team1[metric.key];
+    const displayV2 = team2[metric.key];
+    const compareV1 = metric.compareKey ? team1[metric.compareKey] : displayV1;
+    const compareV2 = metric.compareKey ? team2[metric.compareKey] : displayV2;
+    const winner = winnerForMetric(compareV1, compareV2, metric.lowerIsBetter);
 
     return `
       <tr>
         <td class="metric-col">${metric.label}</td>
         <td class="team-col ${winner === "team1" ? "winner" : ""}">
-          <span class="arrow">${indicator(winner, "team1")}</span>${fmt(v1)}
+          <span class="arrow">${indicator(winner, "team1")}</span>${fmt(displayV1)}
         </td>
         <td class="team-col ${winner === "team2" ? "winner" : ""}">
-          <span class="arrow">${indicator(winner, "team2")}</span>${fmt(v2)}
+          <span class="arrow">${indicator(winner, "team2")}</span>${fmt(displayV2)}
         </td>
       </tr>
     `;

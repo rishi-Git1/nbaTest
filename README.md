@@ -18,6 +18,7 @@ This project is a starter NBA stats site powered by [`nba_api`](https://pypi.org
   - Fouls per game
 - Sortable/paginated API endpoint.
 - Minimal frontend table with sort controls.
+- Players page includes an **Advanced Statistics** mode with additional sortable metrics (e.g., TS%, 3PAr, FTr, ORB%/DRB%/TRB%, AST%/STL%/BLK%/TOV%/USG%, OFF/DEF/NET rating, PIE).
 - In-memory TTL caching with stale fallback on upstream fetch failure.
 
 ## Run locally (PowerShell, Python 3.13)
@@ -66,7 +67,7 @@ Query parameters:
 
 - `season` (default current, e.g. `2024-25`)
 - `sort_by` one of:
-  `player_name`, `team`, `gp`, `ppg`, `rpg`, `apg`, `spg`, `bpg`, `plus_minus`, `fg_pct`, `ts_pct`, `ft_pct`, `three_pt_pct`, `pf_pg`
+  `player_name`, `team`, `gp`, `ppg`, `rpg`, `apg`, `spg`, `bpg`, `plus_minus`, `fg_pct`, `ts_pct`, `ft_pct`, `three_pt_pct`, `pf_pg`, `mpg`, `off_rating`, `def_rating`, `net_rating`, `ast_pct`, `oreb_pct`, `dreb_pct`, `reb_pct`, `stl_pct`, `blk_pct`, `tov_pct`, `usg_pct`, `efg_pct`, `three_par`, `ftr`, `pie`
 - `order`: `asc` or `desc`
 - `limit`: 1-1000
 - `offset`: 0+
@@ -93,4 +94,4 @@ Query parameters:
 - `season_2` (team 2 season)
 - `team2_id`
 
-Includes team-level comparisons with winner indicators in the UI. For `FOULS/G`, `TOV/G`, and `DEF RATING`, lower values are treated as better.
+Includes team-level comparisons with winner indicators in the UI. For `FOULS/G`, `TOV/G`, and `DEF RATING`, lower values are treated as better. Team record appears as the final comparison row and uses win% internally for winner indication.

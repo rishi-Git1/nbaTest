@@ -22,11 +22,7 @@
 
         <label>
           SORT BY
-          <select id="sort_by" name="sort_by">
-            {% for option in sort_options %}
-            <option value="{{ option.key }}" {% if option.key == 'ppg' %}selected{% endif %}>{{ option.label }}</option>
-            {% endfor %}
-          </select>
+          <select id="sort_by" name="sort_by"></select>
         </label>
 
         <label>
@@ -38,6 +34,7 @@
         </label>
 
         <button type="submit">LOAD</button>
+        <button type="button" id="advanced-toggle">ADVANCED STATISTICS: OFF</button>
       </form>
 
       <p id="status">Loading...</p>
@@ -45,22 +42,7 @@
       <div class="table-wrap">
         <table id="results">
           <thead>
-            <tr>
-              <th>PLAYER</th>
-              <th>TEAM</th>
-              <th>GP</th>
-              <th>PPG</th>
-              <th>RPG</th>
-              <th>APG</th>
-              <th>SPG</th>
-              <th>BPG</th>
-              <th>+/-</th>
-              <th>FG%</th>
-              <th>TS%</th>
-              <th>FT%</th>
-              <th>3P%</th>
-              <th>FOULS/G</th>
-            </tr>
+            <tr id="results-header-row"></tr>
           </thead>
           <tbody></tbody>
         </table>

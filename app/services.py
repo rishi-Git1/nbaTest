@@ -22,6 +22,23 @@ ALLOWED_SORT_KEYS = {
     "ft_pct",
     "three_pt_pct",
     "pf_pg",
+    # Advanced-style sorting keys
+    "mpg",
+    "off_rating",
+    "def_rating",
+    "net_rating",
+    "ast_pct",
+    "oreb_pct",
+    "dreb_pct",
+    "reb_pct",
+    "stl_pct",
+    "blk_pct",
+    "tov_pct",
+    "usg_pct",
+    "efg_pct",
+    "three_par",
+    "ftr",
+    "pie",
 }
 
 _DEFAULT_TTL = int(os.getenv("NBA_CACHE_TTL_SECONDS", "900"))
@@ -136,6 +153,14 @@ def _normalize_float(value: Any) -> float | None:
         return None
 
 
+def _safe_div(numerator: Any, denominator: Any) -> float | None:
+    n = _normalize_float(numerator)
+    d = _normalize_float(denominator)
+    if n is None or d in (None, 0):
+        return None
+    return round(n / d, 3)
+
+
 def _compose_rows(per_game: list[dict[str, Any]], advanced: list[dict[str, Any]]) -> list[dict[str, Any]]:
     active_map = _active_players_map()
     advanced_by_id = {int(row["PLAYER_ID"]): row for row in advanced}
@@ -154,6 +179,7 @@ def _compose_rows(per_game: list[dict[str, Any]], advanced: list[dict[str, Any]]
                 "team": row.get("TEAM_ABBREVIATION"),
                 "team_id": int(row.get("TEAM_ID", 0)) if row.get("TEAM_ID") else None,
                 "gp": int(row.get("GP", 0)) if row.get("GP") is not None else None,
+                # Base stats
                 "ppg": _normalize_float(row.get("PTS")),
                 "rpg": _normalize_float(row.get("REB")),
                 "apg": _normalize_float(row.get("AST")),
@@ -165,6 +191,23 @@ def _compose_rows(per_game: list[dict[str, Any]], advanced: list[dict[str, Any]]
                 "ft_pct": _normalize_float(row.get("FT_PCT")),
                 "three_pt_pct": _normalize_float(row.get("FG3_PCT")),
                 "pf_pg": _normalize_float(row.get("PF")),
+                # Advanced-style fields
+                "mpg": _normalize_float(row.get("MIN")),
+                "off_rating": _normalize_float(adv.get("OFF_RATING")),
+                "def_rating": _normalize_float(adv.get("DEF_RATING")),
+                "net_rating": _normalize_float(adv.get("NET_RATING")),
+                "ast_pct": _normalize_float(adv.get("AST_PCT")),
+                "oreb_pct": _normalize_float(adv.get("OREB_PCT")),
+                "dreb_pct": _normalize_float(adv.get("DREB_PCT")),
+                "reb_pct": _normalize_float(adv.get("REB_PCT")),
+                "stl_pct": _normalize_float(adv.get("STL_PCT")),
+                "blk_pct": _normalize_float(adv.get("BLK_PCT")),
+                "tov_pct": _normalize_float(adv.get("TM_TOV_PCT")),
+                "usg_pct": _normalize_float(adv.get("USG_PCT")),
+                "efg_pct": _normalize_float(adv.get("EFG_PCT")),
+                "three_par": _safe_div(row.get("FG3A"), row.get("FGA")),
+                "ftr": _safe_div(row.get("FTA"), row.get("FGA")),
+                "pie": _normalize_float(adv.get("PIE")),
             }
         )
 
@@ -216,6 +259,8 @@ def _team_summary_for_season(team_id: int, season: str) -> dict[str, Any]:
 
     adv = team_adv_by_id.get(team_id, {})
     info = teams_by_id.get(team_id, {"full_name": f"TEAM {team_id}", "abbreviation": "N/A"})
+    wins = int(base.get("W", 0))
+    losses = int(base.get("L", 0))
 
     return {
         "team_id": team_id,
@@ -237,6 +282,8 @@ def _team_summary_for_season(team_id: int, season: str) -> dict[str, Any]:
         "tov_pg": _normalize_float(base.get("TOV")),
         "off_rating": _normalize_float(adv.get("OFF_RATING")),
         "def_rating": _normalize_float(adv.get("DEF_RATING")),
+        "win_pct": _normalize_float(base.get("W_PCT")),
+        "team_record": f"{wins}-{losses}",
     }
 
 
