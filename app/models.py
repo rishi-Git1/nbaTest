@@ -15,6 +15,7 @@ class PlayerStatsRow(BaseModel):
     fg_pct: float | None = None
     ts_pct: float | None = None
     ft_pct: float | None = None
+    three_pt_pct: float | None = None
     pf_pg: float | None = None
 
 

@@ -13,6 +13,7 @@ const METRICS = [
   { key: "fg_pct", label: "FG%", lowerIsBetter: false },
   { key: "ts_pct", label: "TS%", lowerIsBetter: false },
   { key: "ft_pct", label: "FT%", lowerIsBetter: false },
+  { key: "three_pt_pct", label: "3P%", lowerIsBetter: false },
   { key: "pf_pg", label: "FOULS/G", lowerIsBetter: true },
   { key: "tov_pg", label: "TOV/G", lowerIsBetter: true },
   { key: "off_rating", label: "OFF RATING", lowerIsBetter: false },
@@ -51,7 +52,7 @@ function renderTeamSummary(team1, team2) {
 
     return `
       <tr>
-        <td class="metric-col">${metric.label}${metric.lowerIsBetter ? " (LOWER IS BETTER)" : ""}</td>
+        <td class="metric-col">${metric.label}</td>
         <td class="team-col ${winner === "team1" ? "winner" : ""}">
           <span class="arrow">${indicator(winner, "team1")}</span>${fmt(v1)}
         </td>

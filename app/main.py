@@ -31,6 +31,7 @@ SORT_LABELS = {
     "fg_pct": "FIELD GOAL % (FG%)",
     "ts_pct": "TRUE SHOOTING % (TS%)",
     "ft_pct": "FREE THROW % (FT%)",
+    "three_pt_pct": "3-POINT % (3P%)",
     "pf_pg": "FOULS PER GAME",
 }
 

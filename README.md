@@ -66,7 +66,7 @@ Query parameters:
 
 - `season` (default current, e.g. `2024-25`)
 - `sort_by` one of:
-  `player_name`, `team`, `gp`, `ppg`, `rpg`, `apg`, `spg`, `bpg`, `plus_minus`, `fg_pct`, `ts_pct`, `ft_pct`, `pf_pg`
+  `player_name`, `team`, `gp`, `ppg`, `rpg`, `apg`, `spg`, `bpg`, `plus_minus`, `fg_pct`, `ts_pct`, `ft_pct`, `three_pt_pct`, `pf_pg`
 - `order`: `asc` or `desc`
 - `limit`: 1-1000
 - `offset`: 0+

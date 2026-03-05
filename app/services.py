@@ -20,6 +20,7 @@ ALLOWED_SORT_KEYS = {
     "fg_pct",
     "ts_pct",
     "ft_pct",
+    "three_pt_pct",
     "pf_pg",
 }
 
@@ -162,6 +163,7 @@ def _compose_rows(per_game: list[dict[str, Any]], advanced: list[dict[str, Any]]
                 "fg_pct": _normalize_float(row.get("FG_PCT")),
                 "ts_pct": _normalize_float(adv.get("TS_PCT")),
                 "ft_pct": _normalize_float(row.get("FT_PCT")),
+                "three_pt_pct": _normalize_float(row.get("FG3_PCT")),
                 "pf_pg": _normalize_float(row.get("PF")),
             }
         )
@@ -230,6 +232,7 @@ def _team_summary_for_season(team_id: int, season: str) -> dict[str, Any]:
         "fg_pct": _normalize_float(base.get("FG_PCT")),
         "ts_pct": _normalize_float(adv.get("TS_PCT")),
         "ft_pct": _normalize_float(base.get("FT_PCT")),
+        "three_pt_pct": _normalize_float(base.get("FG3_PCT")),
         "pf_pg": _normalize_float(base.get("PF")),
         "tov_pg": _normalize_float(base.get("TOV")),
         "off_rating": _normalize_float(adv.get("OFF_RATING")),

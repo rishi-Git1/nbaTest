@@ -25,6 +25,7 @@ function renderRows(rows) {
       <td>${fmt(row.fg_pct)}</td>
       <td>${fmt(row.ts_pct)}</td>
       <td>${fmt(row.ft_pct)}</td>
+      <td>${fmt(row.three_pt_pct)}</td>
       <td>${fmt(row.pf_pg)}</td>
     `;
     tbody.appendChild(tr);
