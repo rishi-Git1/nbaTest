@@ -19,7 +19,7 @@ This project is a starter NBA stats site powered by [`nba_api`](https://pypi.org
 - Sortable/paginated API endpoint.
 - Minimal frontend table with sort controls.
 - Players page includes an **Advanced Statistics** mode with additional sortable metrics (e.g., TS%, 3PAr, FTr, ORB%/DRB%/TRB%, AST%/STL%/BLK%/TOV%/USG%, OFF/DEF/NET rating, PIE).
-- Added an **Awards Formula** page (`/awards-formula`) to score players via custom 0-100 metric weights, team rating weight, and award presets (MVP/DPOY/ROTY/CUSTOM).
+- Added an **Awards Formula** page (`/awards-formula`) to score players via custom 0-100 metric weights, team rating weight, and award presets (MVP/DPOY/CUSTOM).
 - In-memory TTL caching with stale fallback on upstream fetch failure.
 
 ## Run locally (PowerShell, Python 3.13)
@@ -103,7 +103,7 @@ Includes team-level comparisons with winner indicators in the UI. For `FOULS/G`,
 JSON body:
 
 - `season`
-- `award` (`CUSTOM`, `MVP`, `DPOY`, `ROTY`)
+- `award` (`CUSTOM`, `MVP`, `DPOY`)
 - `weights` (object of metric->0..100)
 - `team_rating_weight` (0..100, uses team `W_PCT`)
 - `min_gp`
@@ -111,5 +111,4 @@ JSON body:
 
 Notes:
 
-- For `ROTY`, only first-year players are eligible.
 - `def_rating`, `pf_pg`, and `tov_pct` are treated as lower-is-better.

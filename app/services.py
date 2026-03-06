@@ -140,19 +140,6 @@ AWARD_PRESETS: dict[str, dict[str, Any]] = {
         "team_rating_weight": 30,
         "min_gp": 50,
     },
-    "ROTY": {
-        "weights": {
-            "ppg": 70,
-            "rpg": 40,
-            "apg": 45,
-            "ts_pct": 50,
-            "pie": 55,
-            "usg_pct": 35,
-            "net_rating": 25,
-        },
-        "team_rating_weight": 20,
-        "min_gp": 30,
-    },
 }
 
 _DEFAULT_TTL = int(os.getenv("NBA_CACHE_TTL_SECONDS", "900"))
@@ -257,16 +244,6 @@ def _active_players_map() -> dict[int, str]:
     return {int(p["id"]): p["full_name"] for p in active}
 
 
-def _player_first_season_map() -> dict[int, int | None]:
-    key = ("global", "player_first_seasons")
-    cached = cache.get(key)
-    if cached is not None:
-        return cached
-    all_players = players.get_players()
-    first = {int(p["id"]): (int(p["first_season"]) if p.get("first_season") else None) for p in all_players}
-    cache.set(key, first)
-    return first
-
 
 def get_teams_directory() -> list[dict[str, Any]]:
     all_teams = teams.get_teams()
@@ -298,11 +275,39 @@ def _safe_div(numerator: Any, denominator: Any) -> float | None:
     return round(n / d, 3)
 
 
+def _normalize_position(position: Any) -> str | None:
+    if position is None:
+        return None
+    raw = str(position).strip().upper()
+    if not raw:
+        return None
+
+    # Common values from nba_api: PG, SG, SF, PF, C, G, F, G-F, F-G, F-C, C-F
+    mapping = {
+        "G": "PG/SG",
+        "F": "SF/PF",
+        "PG": "PG",
+        "SG": "SG",
+        "SF": "SF",
+        "PF": "PF",
+        "C": "C",
+        "G-F": "PG/SG/SF",
+        "F-G": "SF/SG/PG",
+        "F-C": "PF/C",
+        "C-F": "C/PF",
+        "PG-SG": "PG/SG",
+        "SG-PG": "SG/PG",
+        "SF-PF": "SF/PF",
+        "PF-SF": "PF/SF",
+        "SG-SF": "SG/SF",
+        "SF-SG": "SF/SG",
+    }
+    return mapping.get(raw, raw.replace("-", "/"))
+
+
 def _compose_rows(per_game: list[dict[str, Any]], advanced: list[dict[str, Any]], season: str) -> list[dict[str, Any]]:
     active_map = _active_players_map()
-    first_season_map = _player_first_season_map()
     advanced_by_id = {int(row["PLAYER_ID"]): row for row in advanced}
-    season_start = int(season.split("-")[0])
 
     rows: list[dict[str, Any]] = []
     for row in per_game:
@@ -317,7 +322,7 @@ def _compose_rows(per_game: list[dict[str, Any]], advanced: list[dict[str, Any]]
                 "player_name": row.get("PLAYER_NAME") or active_map[player_id],
                 "team": row.get("TEAM_ABBREVIATION"),
                 "team_id": int(row.get("TEAM_ID", 0)) if row.get("TEAM_ID") else None,
-                "is_rookie": first_season_map.get(player_id) == season_start,
+                "position": _normalize_position(row.get("PLAYER_POSITION") or row.get("POSITION")),
                 "gp": int(row.get("GP", 0)) if row.get("GP") is not None else None,
                 # Base stats
                 "ppg": _normalize_float(row.get("PTS")),
@@ -414,8 +419,6 @@ def calculate_award_rankings(
     eligible = [row for row in available if (row.get("gp") or 0) >= min_gp]
 
     award_upper = award.upper()
-    if award_upper == "ROTY":
-        eligible = [row for row in eligible if row.get("is_rookie") is True]
 
     if not eligible:
         raise ValueError("No eligible players found for the selected criteria.")
@@ -485,7 +488,6 @@ def calculate_award_rankings(
                 "player_name": row["player_name"],
                 "team": row["team"],
                 "gp": row.get("gp"),
-                "is_rookie": row.get("is_rookie", False),
                 "award_score": award_score,
                 "team_win_pct": team_win_pct.get(row.get("team_id") or -1),
                 "contributions": contribution_map,

@@ -39,7 +39,6 @@ function renderRows(rows) {
       <td>${row.team ?? "-"}</td>
       <td>${row.gp ?? "-"}</td>
       <td>${Number(row.award_score).toFixed(3)}</td>
-      <td>${row.is_rookie ? "YES" : "NO"}</td>
     `;
     tbody.appendChild(tr);
   });

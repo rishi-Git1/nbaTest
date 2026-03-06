@@ -5,6 +5,7 @@ class PlayerStatsRow(BaseModel):
     player_id: int
     player_name: str
     team: str | None = None
+    position: str | None = None
     gp: int | None = None
 
     # Base stats
