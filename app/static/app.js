@@ -11,7 +11,7 @@ const topScrollInner = document.getElementById("results-top-scroll-inner");
 const BASE_COLUMNS = [
   { key: "player_name", label: "PLAYER" },
   { key: "team", label: "TEAM" },
-  { key: "position", label: "POS" },
+  
   { key: "gp", label: "GP" },
   { key: "ppg", label: "PPG" },
   { key: "rpg", label: "RPG" },
@@ -29,7 +29,7 @@ const BASE_COLUMNS = [
 const ADVANCED_COLUMNS = [
   { key: "player_name", label: "PLAYER" },
   { key: "team", label: "TEAM" },
-  { key: "position", label: "POS" },
+  
   { key: "gp", label: "G" },
   { key: "mpg", label: "MP" },
   { key: "ts_pct", label: "TS%" },

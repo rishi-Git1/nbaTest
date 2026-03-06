@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from nba_api.stats.endpoints import leaguedashplayerstats, leaguedashteamstats
+from nba_api.stats.endpoints import leaguedashplayerbiostats, leaguedashplayerstats, leaguedashteamstats
 from nba_api.stats.static import players, teams
 
 ALLOWED_SORT_KEYS = {
@@ -219,6 +219,15 @@ def _fetch_advanced_stats(season: str) -> list[dict[str, Any]]:
     return endpoint.get_data_frames()[0].to_dict("records")
 
 
+def _fetch_player_bio_stats(season: str) -> list[dict[str, Any]]:
+    endpoint = leaguedashplayerbiostats.LeagueDashPlayerBioStats(
+        season=season,
+        season_type_all_star="Regular Season",
+        per_mode_simple="PerGame",
+    )
+    return endpoint.get_data_frames()[0].to_dict("records")
+
+
 def _fetch_team_base_stats(season: str) -> list[dict[str, Any]]:
     endpoint = leaguedashteamstats.LeagueDashTeamStats(
         season=season,
@@ -305,9 +314,15 @@ def _normalize_position(position: Any) -> str | None:
     return mapping.get(raw, raw.replace("-", "/"))
 
 
-def _compose_rows(per_game: list[dict[str, Any]], advanced: list[dict[str, Any]], season: str) -> list[dict[str, Any]]:
+def _compose_rows(
+    per_game: list[dict[str, Any]],
+    advanced: list[dict[str, Any]],
+    bio_stats: list[dict[str, Any]],
+    season: str,
+) -> list[dict[str, Any]]:
     active_map = _active_players_map()
     advanced_by_id = {int(row["PLAYER_ID"]): row for row in advanced}
+    bio_by_id = {int(row["PLAYER_ID"]): row for row in bio_stats if row.get("PLAYER_ID") is not None}
 
     rows: list[dict[str, Any]] = []
     for row in per_game:
@@ -316,13 +331,18 @@ def _compose_rows(per_game: list[dict[str, Any]], advanced: list[dict[str, Any]]
             continue
 
         adv = advanced_by_id.get(player_id, {})
+        bio = bio_by_id.get(player_id, {})
         rows.append(
             {
                 "player_id": player_id,
                 "player_name": row.get("PLAYER_NAME") or active_map[player_id],
                 "team": row.get("TEAM_ABBREVIATION"),
                 "team_id": int(row.get("TEAM_ID", 0)) if row.get("TEAM_ID") else None,
-                "position": _normalize_position(row.get("PLAYER_POSITION") or row.get("POSITION")),
+                #"position": _normalize_position(
+                #    bio.get("PLAYER_POSITION")
+                #    or row.get("PLAYER_POSITION")
+                #    or row.get("POSITION")
+                #),
                 "gp": int(row.get("GP", 0)) if row.get("GP") is not None else None,
                 # Base stats
                 "ppg": _normalize_float(row.get("PTS")),
@@ -368,7 +388,8 @@ def get_active_player_stats(season: str) -> list[dict[str, Any]]:
     try:
         per_game = _fetch_per_game_stats(season)
         advanced = _fetch_advanced_stats(season)
-        rows = _compose_rows(per_game, advanced, season)
+        bio_stats = _fetch_player_bio_stats(season)
+        rows = _compose_rows(per_game, advanced, bio_stats, season)
         cache.set(key, rows)
         return rows
     except Exception as exc:  # noqa: BLE001
