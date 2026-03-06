@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NBA Awards Formula</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main>
+      <div class="top-row">
+        <h1>NBA Awards Formula</h1>
+        <div class="nav-group">
+          <a class="nav-button" href="/">PLAYERS</a>
+          <a class="nav-button" href="/head-to-head">HEAD-TO-HEAD</a>
+        </div>
+      </div>
+      <p>Create a weighted formula (0-100 per metric) and rank players for awards like MVP, DPOY, and ROTY.</p>
+
+      <form id="awards-controls">
+        <label>
+          SEASON
+          <select id="season" name="season" required>
+            {% for season in seasons %}
+            <option value="{{ season }}" {% if season == default_season %}selected{% endif %}>{{ season }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label>
+          AWARD
+          <select id="award" name="award">
+            {% for key, _ in presets.items() %}
+            <option value="{{ key }}">{{ key }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label>
+          TEAM RATING WEIGHT (WIN%)
+          <input type="number" id="team_rating_weight" name="team_rating_weight" min="0" max="100" value="0" />
+        </label>
+
+        <label>
+          MIN GP
+          <input type="number" id="min_gp" name="min_gp" min="0" max="82" value="0" />
+        </label>
+
+        <label>
+          TOP N
+          <input type="number" id="top_n" name="top_n" min="1" max="100" value="25" />
+        </label>
+
+        <button type="submit">RUN FORMULA</button>
+        <button type="button" id="reset-weights">RESET WEIGHTS</button>
+      </form>
+
+      <section class="awards-section">
+        <h2>BASE METRICS</h2>
+        <div class="weights-grid" id="base-metrics">
+          {% for metric in metric_groups.base %}
+          <label>
+            {{ metric.label }}
+            <input type="number" min="0" max="100" step="1" value="0" data-metric-key="{{ metric.key }}" />
+          </label>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="awards-section">
+        <h2>ADVANCED METRICS</h2>
+        <div class="weights-grid" id="advanced-metrics">
+          {% for metric in metric_groups.advanced %}
+          <label>
+            {{ metric.label }}
+            <input type="number" min="0" max="100" step="1" value="0" data-metric-key="{{ metric.key }}" />
+          </label>
+          {% endfor %}
+        </div>
+      </section>
+
+      <p id="awards-status">Adjust weights and run formula.</p>
+
+      <div class="table-wrap">
+        <table id="awards-results">
+          <thead>
+            <tr>
+              <th>RANK</th>
+              <th>PLAYER</th>
+              <th>TEAM</th>
+              <th>GP</th>
+              <th>SCORE</th>
+              <th>ROOKIE</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </main>
+
+    <script>
+      window.AWARDS_PRESETS = {{ presets | tojson }};
+    </script>
+    <script src="/static/awards.js"></script>
+  </body>
+</html>

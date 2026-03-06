@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -6,7 +6,10 @@ from fastapi.templating import Jinja2Templates
 from app.models import PlayerStatsResponse
 from app.services import (
     ALLOWED_SORT_KEYS,
+    calculate_award_rankings,
     get_active_player_stats,
+    get_award_metric_groups,
+    get_award_presets,
     get_current_season,
     get_recent_seasons,
     get_team_vs_team,
@@ -79,6 +82,20 @@ def head_to_head_page(request: Request):
     )
 
 
+@app.get("/awards-formula", response_class=HTMLResponse)
+def awards_formula_page(request: Request):
+    return templates.TemplateResponse(
+        "awards_formula.html",
+        {
+            "request": request,
+            "default_season": get_current_season(),
+            "seasons": get_recent_seasons(),
+            "metric_groups": get_award_metric_groups(),
+            "presets": get_award_presets(),
+        },
+    )
+
+
 @app.get("/api/players", response_model=PlayerStatsResponse)
 def list_players(
     season: str = Query(default_factory=get_current_season),
@@ -119,6 +136,32 @@ def head_to_head(
 ):
     try:
         return get_team_vs_team(season1=season_1, team1_id=team1_id, season2=season_2, team2_id=team2_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Upstream data fetch failed: {exc}") from exc
+
+
+@app.post("/api/awards-formula")
+def awards_formula(
+    payload: dict = Body(...),
+):
+    try:
+        season = payload.get("season") or get_current_season()
+        award = str(payload.get("award") or "CUSTOM")
+        weights = payload.get("weights") or {}
+        team_rating_weight = float(payload.get("team_rating_weight") or 0)
+        min_gp = int(payload.get("min_gp") or 0)
+        top_n = int(payload.get("top_n") or 25)
+
+        return calculate_award_rankings(
+            season=season,
+            award=award,
+            weights=weights,
+            team_rating_weight=team_rating_weight,
+            min_gp=min_gp,
+            top_n=max(1, min(top_n, 100)),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001

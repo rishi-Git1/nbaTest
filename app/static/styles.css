@@ -22,6 +22,12 @@ h1 {
   gap: 16px;
 }
 
+.nav-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .nav-button {
   text-decoration: none;
   font-weight: 700;
@@ -171,4 +177,28 @@ td:nth-child(2) {
 
 #results-top-scroll-inner {
   height: 12px;
+}
+
+
+.awards-section {
+  margin: 14px 0;
+}
+
+.weights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+#awards-controls {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+#awards-results th,
+#awards-results td {
+  padding: 8px;
 }
