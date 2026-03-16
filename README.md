@@ -21,6 +21,7 @@ This project is a starter NBA stats site powered by [`nba_api`](https://pypi.org
 - Players page includes an **Advanced Statistics** mode with additional sortable metrics (e.g., TS%, 3PAr, FTr, ORB%/DRB%/TRB%, AST%/STL%/BLK%/TOV%/USG%, OFF/DEF/NET rating, PIE).
 - Added an **Awards Formula** page (`/awards-formula`) to score players via custom 0-100 metric weights, team rating weight, and award presets (MVP/DPOY/CUSTOM).
 - Added a **Lineups** page (`/lineups`) for current-season team lineup filtering (Top N, minimum minutes together, sortable lineup stats).
+- Added a **Player Similarity** page (`/player-similarity`) that computes weighted cosine similarity using normalized player stats, optional shot-diet features, and optional archetype-only comparisons.
 - In-memory TTL caching with stale fallback on upstream fetch failure.
 
 ## Run locally (PowerShell, Python 3.13)
@@ -128,3 +129,19 @@ Query parameters:
 - `order` (`asc` or `desc`)
 
 Returns normalized lineup rows with metrics such as MIN, GP, OFF/DEF/NET rating, AST%, REB%, eFG%, TS%, and PIE for the selected team.
+
+
+### `GET /api/player-similarity`
+
+Query parameters:
+
+- `season`
+- `player_name`
+- `top_n` (1..25)
+- `min_minutes` (minimum total minutes filter, e.g. 800)
+- `include_shot_diet` (`true`/`false`)
+- `archetype_only` (`true`/`false`)
+
+Response metadata includes `shot_diet_source` (currently `season-stats-proxy`) when shot diet is enabled.
+
+Returns top similar players based on weighted cosine similarity over z-score normalized features (box/advanced stats + optional shot-diet proxy rates for 3PT share, paint share, and midrange share).

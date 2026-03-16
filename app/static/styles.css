@@ -203,3 +203,24 @@ td:nth-child(2) {
 #awards-results td {
   padding: 8px;
 }
+
+
+#similarity-controls {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+}
+
+.checkbox-label input {
+  margin: 0;
+}

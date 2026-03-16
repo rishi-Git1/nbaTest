@@ -769,3 +769,229 @@ def get_team_lineups(
         },
         "data": normalized,
     }
+
+
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _build_shot_diet_map(rows: list[dict[str, Any]]) -> dict[int, dict[str, float]]:
+    """Build a stable, always-available shot-diet proxy from player season stats.
+
+    - three_rate: share of FGA that are 3PA (`three_par`).
+    - paint_rate and midrange_rate split remaining 2PA using a free-throw-rate proxy
+      (players who draw more FTs are typically more rim/paint oriented).
+    """
+    result: dict[int, dict[str, float]] = {}
+    for row in rows:
+        player_id = int(_safe_float(row.get("player_id"), 0))
+        if not player_id:
+            continue
+
+        three_rate = min(1.0, max(0.0, _safe_float(row.get("three_par"), 0.0)))
+        two_point_rate = 1.0 - three_rate
+
+        # Paint share proxy of 2PA derived from FTr; bounded to avoid extreme outputs.
+        ftr = min(1.0, max(0.0, _safe_float(row.get("ftr"), 0.0)))
+        paint_share_of_twos = min(0.85, max(0.2, 0.25 + (ftr * 0.9)))
+
+        paint_rate = two_point_rate * paint_share_of_twos
+        midrange_rate = max(0.0, 1.0 - three_rate - paint_rate)
+
+        result[player_id] = {
+            "three_rate": three_rate,
+            "paint_rate": paint_rate,
+            "midrange_rate": midrange_rate,
+        }
+
+    return result
+
+
+def _normalize_matrix(values: list[list[float]]) -> list[list[float]]:
+    if not values:
+        return []
+
+    cols = len(values[0])
+    means = [sum(row[c] for row in values) / len(values) for c in range(cols)]
+    stds = []
+    for c in range(cols):
+        var = sum((row[c] - means[c]) ** 2 for row in values) / len(values)
+        stds.append(var**0.5 if var > 0 else 1.0)
+
+    return [[(row[c] - means[c]) / stds[c] for c in range(cols)] for row in values]
+
+
+def _cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
+    dot = sum(a * b for a, b in zip(vec_a, vec_b))
+    mag_a = sum(a * a for a in vec_a) ** 0.5
+    mag_b = sum(b * b for b in vec_b) ** 0.5
+    if mag_a == 0 or mag_b == 0:
+        return 0.0
+    return dot / (mag_a * mag_b)
+
+
+def _fit_archetypes(feature_rows: list[list[float]], n_clusters: int = 6, iterations: int = 15) -> list[int]:
+    # Lightweight K-means implementation (no sklearn dependency).
+    if not feature_rows:
+        return []
+
+    n_clusters = max(1, min(n_clusters, len(feature_rows)))
+    centroids = [feature_rows[i][:] for i in range(n_clusters)]
+    labels = [0 for _ in feature_rows]
+
+    for _ in range(iterations):
+        for i, row in enumerate(feature_rows):
+            best_cluster = 0
+            best_dist = float("inf")
+            for c, center in enumerate(centroids):
+                dist = sum((row[k] - center[k]) ** 2 for k in range(len(row)))
+                if dist < best_dist:
+                    best_dist = dist
+                    best_cluster = c
+            labels[i] = best_cluster
+
+        for c in range(n_clusters):
+            members = [feature_rows[i] for i, label in enumerate(labels) if label == c]
+            if not members:
+                continue
+            centroids[c] = [sum(row[k] for row in members) / len(members) for k in range(len(members[0]))]
+
+    return labels
+
+
+def get_player_similarity(
+    season: str,
+    player_name: str,
+    top_n: int,
+    min_minutes: int,
+    include_shot_diet: bool,
+    archetype_only: bool,
+) -> dict[str, Any]:
+    rows = get_active_player_stats(season=season)
+    filtered = [
+        row
+        for row in rows
+        if int(_safe_float(row.get("gp"), 0) * _safe_float(row.get("mpg"), 0)) >= int(min_minutes)
+    ]
+
+    if len(filtered) < 2:
+        raise ValueError("Not enough eligible players for similarity. Lower min_minutes or try another season.")
+
+    target_idx = next((i for i, row in enumerate(filtered) if row.get("player_name", "").lower() == player_name.lower()), None)
+    if target_idx is None:
+        raise ValueError(f"Player '{player_name}' not found in eligible player pool for {season}.")
+
+    base_features = ["ppg", "apg", "rpg", "spg", "bpg", "tov_pct", "ts_pct", "usg_pct", "ast_pct", "reb_pct"]
+    feature_weights = {
+        "ppg": 1.0,
+        "apg": 1.15,
+        "rpg": 0.9,
+        "spg": 0.8,
+        "bpg": 0.8,
+        "tov_pct": -0.6,
+        "ts_pct": 1.05,
+        "usg_pct": 1.0,
+        "ast_pct": 1.0,
+        "reb_pct": 0.8,
+    }
+
+    shot_map: dict[int, dict[str, float]] = {}
+    shot_diet_included = False
+    if include_shot_diet:
+        try:
+            shot_map = _build_shot_diet_map(filtered)
+            if shot_map:
+                base_features += ["three_rate", "paint_rate", "midrange_rate"]
+                feature_weights.update(
+                    {
+                        "three_rate": 1.0,
+                        "paint_rate": 0.9,
+                        "midrange_rate": 0.8,
+                    }
+                )
+                shot_diet_included = True
+        except Exception:
+            shot_diet_included = False
+
+    matrix: list[list[float]] = []
+    for row in filtered:
+        player_id = int(_safe_float(row.get("player_id"), 0))
+        shot = shot_map.get(player_id, {})
+        vector = []
+        for key in base_features:
+            if key in shot:
+                vector.append(_safe_float(shot.get(key), 0.0))
+            else:
+                vector.append(_safe_float(row.get(key), 0.0))
+        matrix.append(vector)
+
+    matrix = _normalize_matrix(matrix)
+    for i, vec in enumerate(matrix):
+        matrix[i] = [vec[j] * feature_weights.get(base_features[j], 1.0) for j in range(len(base_features))]
+
+    labels: list[int] | None = None
+    if archetype_only and len(filtered) >= 12:
+        archetype_features = ["usg_pct", "ast_pct", "reb_pct", "ts_pct"]
+        if shot_diet_included:
+            archetype_features += ["three_rate", "midrange_rate", "paint_rate"]
+
+        archetype_matrix = []
+        for row in filtered:
+            player_id = int(_safe_float(row.get("player_id"), 0))
+            shot = shot_map.get(player_id, {})
+            archetype_matrix.append([
+                _safe_float(shot.get(key), 0.0) if key in shot else _safe_float(row.get(key), 0.0) for key in archetype_features
+            ])
+
+        labels = _fit_archetypes(_normalize_matrix(archetype_matrix), n_clusters=6)
+
+    target_vec = matrix[target_idx]
+    candidates: list[dict[str, Any]] = []
+    target_cluster = labels[target_idx] if labels else None
+
+    for i, row in enumerate(filtered):
+        if i == target_idx:
+            continue
+        if labels and archetype_only and labels[i] != target_cluster:
+            continue
+        score = _cosine_similarity(target_vec, matrix[i])
+        candidates.append(
+            {
+                "player_name": row.get("player_name"),
+                "team": row.get("team"),
+                "similarity": round(score, 4),
+                "archetype": f"Cluster {labels[i] + 1}" if labels else None,
+                "ppg": row.get("ppg"),
+                "apg": row.get("apg"),
+                "rpg": row.get("rpg"),
+                "ts_pct": row.get("ts_pct"),
+                "usg_pct": row.get("usg_pct"),
+            }
+        )
+
+    candidates = sorted(candidates, key=lambda r: r["similarity"], reverse=True)
+    top_rows = candidates[:top_n]
+    for rank, row in enumerate(top_rows, start=1):
+        row["rank"] = rank
+
+    return {
+        "meta": {
+            "season": season,
+            "target_player_name": filtered[target_idx].get("player_name"),
+            "candidate_count": len(candidates),
+            "top_n": top_n,
+            "min_minutes": min_minutes,
+            "shot_diet_requested": include_shot_diet,
+            "shot_diet_included": shot_diet_included,
+            "archetype_only": archetype_only,
+            "target_archetype": f"Cluster {target_cluster + 1}" if target_cluster is not None else None,
+            "features": base_features,
+            "shot_diet_source": "season-stats-proxy" if shot_diet_included else None,
+        },
+        "data": top_rows,
+    }

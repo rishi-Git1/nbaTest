@@ -14,6 +14,7 @@ from app.services import (
     get_recent_seasons,
     get_team_lineups,
     get_lineup_sort_options,
+    get_player_similarity,
     get_team_vs_team,
     get_teams_directory,
     sort_rows,
@@ -114,6 +115,20 @@ def lineups_page(request: Request):
     )
 
 
+
+
+@app.get("/player-similarity", response_class=HTMLResponse)
+def player_similarity_page(request: Request):
+    return templates.TemplateResponse(
+        "player_similarity.html",
+        {
+            "request": request,
+            "default_season": get_current_season(),
+            "seasons": get_recent_seasons(),
+        },
+    )
+
+
 @app.get("/api/players", response_model=PlayerStatsResponse)
 def list_players(
     season: str = Query(default_factory=get_current_season),
@@ -183,6 +198,31 @@ def lineups(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"Upstream data fetch failed: {exc}") from exc
+
+
+@app.get("/api/player-similarity")
+def player_similarity(
+    season: str = Query(default_factory=get_current_season),
+    player_name: str = Query(..., min_length=2),
+    top_n: int = Query(5, ge=1, le=25),
+    min_minutes: int = Query(800, ge=0),
+    include_shot_diet: bool = Query(True),
+    archetype_only: bool = Query(False),
+):
+    try:
+        return get_player_similarity(
+            season=season,
+            player_name=player_name,
+            top_n=top_n,
+            min_minutes=min_minutes,
+            include_shot_diet=include_shot_diet,
+            archetype_only=archetype_only,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Upstream data fetch failed: {exc}") from exc
+
 
 
 @app.post("/api/awards-formula")

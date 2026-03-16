@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NBA Player Similarity</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main>
+      <div class="top-row">
+        <h1>NBA Player Similarity</h1>
+        <div class="nav-group">
+          <a class="nav-button" href="/">PLAYERS</a>
+          <a class="nav-button" href="/head-to-head">HEAD-TO-HEAD</a>
+          <a class="nav-button" href="/lineups">LINEUPS</a>
+          <a class="nav-button" href="/awards-formula">AWARDS FORMULA</a>
+        </div>
+      </div>
+
+      <p>Find nearest player comps using normalized box-score + advanced stats, with optional shot-diet and archetype filtering.</p>
+
+      <form id="similarity-controls">
+        <label>
+          SEASON
+          <select id="season" name="season" required>
+            {% for season in seasons %}
+            <option value="{{ season }}" {% if season == default_season %}selected{% endif %}>{{ season }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label>
+          PLAYER NAME
+          <input id="player_name" name="player_name" list="player-options" placeholder="e.g. Luka Doncic" required />
+          <datalist id="player-options"></datalist>
+        </label>
+
+        <label>
+          TOP N COMPS
+          <input id="top_n" name="top_n" type="number" min="1" max="25" value="5" />
+        </label>
+
+        <label>
+          MIN TOTAL MINUTES
+          <input id="min_minutes" name="min_minutes" type="number" min="0" step="50" value="800" />
+        </label>
+
+        <label class="checkbox-label">
+          <input id="include_shot_diet" name="include_shot_diet" type="checkbox" checked />
+          INCLUDE SHOT DIET
+        </label>
+
+        <label class="checkbox-label">
+          <input id="archetype_only" name="archetype_only" type="checkbox" />
+          ARCHETYPE-ONLY COMPS
+        </label>
+
+        <button type="submit">FIND COMPS</button>
+      </form>
+
+      <p id="similarity-status">Enter a player and run similarity.</p>
+
+      <div class="table-wrap">
+        <table id="similarity-results">
+          <thead>
+            <tr>
+              <th>RANK</th>
+              <th>PLAYER</th>
+              <th>TEAM</th>
+              <th>SIMILARITY</th>
+              <th>ARCHETYPE</th>
+              <th>PPG</th>
+              <th>APG</th>
+              <th>RPG</th>
+              <th>TS%</th>
+              <th>USG%</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </main>
+
+    <script src="/static/player_similarity.js"></script>
+  </body>
+</html>
