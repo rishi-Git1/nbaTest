@@ -3,16 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>NBA Active Player Stats</title>
+    <title>NBA Players (Playoffs)</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
     <main>
       <div class="top-row">
-        <h1>NBA Active Player Stats</h1>
-        <div class="nav-group"><a class="nav-button" href="/players-playoffs">PLAYERS (PLAYOFFS)</a><a class="nav-button" href="/head-to-head">TEAM HEAD-TO-HEAD</a><a class="nav-button" href="/lineups">LINEUPS</a><a class="nav-button" href="/player-similarity">PLAYER SIMILARITY</a><a class="nav-button" href="/awards-formula">AWARDS FORMULA</a></div>
+        <h1>NBA Players (Playoffs)</h1>
+        <div class="nav-group"><a class="nav-button" href="/">PLAYERS (REGULAR SEASON)</a><a class="nav-button" href="/head-to-head">TEAM HEAD-TO-HEAD</a><a class="nav-button" href="/lineups">LINEUPS</a><a class="nav-button" href="/player-similarity">PLAYER SIMILARITY</a><a class="nav-button" href="/awards-formula">AWARDS FORMULA</a></div>
       </div>
-      <p>Sortable stats for active players powered by <code>nba_api</code>.</p>
+      <p>Sortable playoff stats for active players powered by <code>nba_api</code>.</p>
 
       <form id="controls">
         <label>
@@ -52,6 +52,6 @@
         </table>
       </div>
     </main>
-    <script src="/static/app.js"></script>
+    <script src="/static/players_playoffs.js"></script>
   </body>
 </html>

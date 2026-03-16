@@ -199,30 +199,30 @@ def get_award_presets() -> dict[str, dict[str, Any]]:
     return AWARD_PRESETS
 
 
-def _fetch_per_game_stats(season: str) -> list[dict[str, Any]]:
+def _fetch_per_game_stats(season: str, season_type: str = "Regular Season") -> list[dict[str, Any]]:
     endpoint = leaguedashplayerstats.LeagueDashPlayerStats(
         season=season,
-        season_type_all_star="Regular Season",
+        season_type_all_star=season_type,
         per_mode_detailed="PerGame",
         measure_type_detailed_defense="Base",
     )
     return endpoint.get_data_frames()[0].to_dict("records")
 
 
-def _fetch_advanced_stats(season: str) -> list[dict[str, Any]]:
+def _fetch_advanced_stats(season: str, season_type: str = "Regular Season") -> list[dict[str, Any]]:
     endpoint = leaguedashplayerstats.LeagueDashPlayerStats(
         season=season,
-        season_type_all_star="Regular Season",
+        season_type_all_star=season_type,
         per_mode_detailed="PerGame",
         measure_type_detailed_defense="Advanced",
     )
     return endpoint.get_data_frames()[0].to_dict("records")
 
 
-def _fetch_player_bio_stats(season: str) -> list[dict[str, Any]]:
+def _fetch_player_bio_stats(season: str, season_type: str = "Regular Season") -> list[dict[str, Any]]:
     endpoint = leaguedashplayerbiostats.LeagueDashPlayerBioStats(
         season=season,
-        season_type_all_star="Regular Season",
+        season_type_all_star=season_type,
         per_mode_simple="PerGame",
     )
     return endpoint.get_data_frames()[0].to_dict("records")
@@ -379,21 +379,22 @@ def _compose_rows(
     return rows
 
 
-def get_active_player_stats(season: str) -> list[dict[str, Any]]:
-    key = (season, "active_player_stats")
+def get_active_player_stats(season: str, season_type: str = "Regular Season") -> list[dict[str, Any]]:
+    season_type_key = season_type.lower().replace(" ", "_")
+    key = (season, f"active_player_stats:{season_type_key}")
     cached = cache.get(key)
     if cached is not None:
         return cached
 
     try:
-        per_game = _fetch_per_game_stats(season)
-        advanced = _fetch_advanced_stats(season)
-        bio_stats = _fetch_player_bio_stats(season)
+        per_game = _fetch_per_game_stats(season, season_type=season_type)
+        advanced = _fetch_advanced_stats(season, season_type=season_type)
+        bio_stats = _fetch_player_bio_stats(season, season_type=season_type)
         rows = _compose_rows(per_game, advanced, bio_stats, season)
         cache.set(key, rows)
         return rows
     except Exception as exc:  # noqa: BLE001
-        print(f"[nba_stats] fetch failed for season={season}: {type(exc).__name__}: {exc}")
+        print(f"[nba_stats] fetch failed for season={season} season_type={season_type}: {type(exc).__name__}: {exc}")
         stale = cache.get_stale(key)
         if stale is not None:
             return stale

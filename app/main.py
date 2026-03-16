@@ -70,6 +70,18 @@ def index(request: Request):
     )
 
 
+@app.get("/players-playoffs", response_class=HTMLResponse)
+def players_playoffs_page(request: Request):
+    return templates.TemplateResponse(
+        "players_playoffs.html",
+        {
+            "request": request,
+            "default_season": get_current_season(),
+            "sort_options": [{"key": key, "label": SORT_LABELS.get(key, key.upper())} for key in sorted(ALLOWED_SORT_KEYS)],
+        },
+    )
+
+
 @app.get("/head-to-head", response_class=HTMLResponse)
 def head_to_head_page(request: Request):
     default_season = get_current_season()
@@ -158,6 +170,39 @@ def list_players(
         },
         "data": paged,
     }
+
+
+@app.get("/api/players-playoffs", response_model=PlayerStatsResponse)
+def list_players_playoffs(
+    season: str = Query(default_factory=get_current_season),
+    sort_by: str = Query("ppg"),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+):
+    try:
+        rows = get_active_player_stats(season=season, season_type="Playoffs")
+        sorted_rows = sort_rows(rows, sort_by=sort_by, order=order)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Upstream data fetch failed: {exc}") from exc
+
+    total = len(sorted_rows)
+    paged = sorted_rows[offset : offset + limit]
+    return {
+        "meta": {
+            "season": season,
+            "sort_by": sort_by,
+            "order": order,
+            "limit": limit,
+            "offset": offset,
+            "total": total,
+            "season_type": "Playoffs",
+        },
+        "data": paged,
+    }
+
 
 
 @app.get("/api/head-to-head")
