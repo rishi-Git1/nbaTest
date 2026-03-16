@@ -20,6 +20,7 @@ This project is a starter NBA stats site powered by [`nba_api`](https://pypi.org
 - Minimal frontend table with sort controls.
 - Players page includes an **Advanced Statistics** mode with additional sortable metrics (e.g., TS%, 3PAr, FTr, ORB%/DRB%/TRB%, AST%/STL%/BLK%/TOV%/USG%, OFF/DEF/NET rating, PIE).
 - Added an **Awards Formula** page (`/awards-formula`) to score players via custom 0-100 metric weights, team rating weight, and award presets (MVP/DPOY/CUSTOM).
+- Added a **Lineups** page (`/lineups`) for current-season team lineup filtering (Top N, minimum minutes together, sortable lineup stats).
 - In-memory TTL caching with stale fallback on upstream fetch failure.
 
 ## Run locally (PowerShell, Python 3.13)
@@ -112,3 +113,18 @@ JSON body:
 Notes:
 
 - `def_rating`, `pf_pg`, and `tov_pct` are treated as lower-is-better.
+
+
+### `GET /api/lineups`
+
+Query parameters:
+
+- `team_id`
+- `season` (defaults to current season)
+- `top_n` (1..100)
+- `min_minutes`
+- `min_games`
+- `sort_by` (e.g. `NET_RATING`, `OFF_RATING`, `DEF_RATING`, `MIN`, `TS_PCT`, `PIE`)
+- `order` (`asc` or `desc`)
+
+Returns normalized lineup rows with metrics such as MIN, GP, OFF/DEF/NET rating, AST%, REB%, eFG%, TS%, and PIE for the selected team.

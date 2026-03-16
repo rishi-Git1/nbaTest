@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NBA Team Lineups</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main>
+      <div class="top-row">
+        <h1>NBA Team Lineups</h1>
+        <div class="nav-group">
+          <a class="nav-button" href="/">PLAYERS</a>
+          <a class="nav-button" href="/head-to-head">HEAD-TO-HEAD</a>
+          <a class="nav-button" href="/awards-formula">AWARDS FORMULA</a>
+        </div>
+      </div>
+      <p>Explore current-season 5-man lineups for any team with minutes and performance filters.</p>
+
+      <form id="lineups-controls">
+        <label>
+          TEAM
+          <select id="team_id" name="team_id" required>
+            {% for team in teams %}
+            <option value="{{ team.id }}">{{ team.full_name.upper() }} ({{ team.abbreviation }})</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label>
+          SEASON
+          <input id="season" name="season" value="{{ default_season }}" readonly />
+        </label>
+
+        <label>
+          TOP N LINEUPS
+          <input id="top_n" name="top_n" type="number" min="1" max="100" value="20" />
+        </label>
+
+        <label>
+          MIN MINUTES TOGETHER
+          <input id="min_minutes" name="min_minutes" type="number" min="0" step="1" value="100" />
+        </label>
+
+        <label>
+          MIN GAMES TOGETHER
+          <input id="min_games" name="min_games" type="number" min="0" step="1" value="5" />
+        </label>
+
+        <label>
+          SORT BY
+          <select id="sort_by" name="sort_by">
+            {% for opt in lineup_sort_options %}
+            <option value="{{ opt.key }}" {% if opt.key == 'NET_RATING' %}selected{% endif %}>{{ opt.label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label>
+          ORDER
+          <select id="order" name="order">
+            <option value="desc" selected>DESCENDING</option>
+            <option value="asc">ASCENDING</option>
+          </select>
+        </label>
+
+        <button type="submit">LOAD LINEUPS</button>
+      </form>
+
+      <p id="lineups-status">Select filters and load lineups.</p>
+
+      <div class="table-wrap">
+        <table id="lineups-results">
+          <thead>
+            <tr>
+              <th>RANK</th>
+              <th>LINEUP</th>
+              <th>MIN</th>
+              <th>GP</th>
+              <th>OFF RTG</th>
+              <th>DEF RTG</th>
+              <th>NET RTG</th>
+              <th>AST%</th>
+              <th>REB%</th>
+              <th>eFG%</th>
+              <th>TS%</th>
+              <th>PIE</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </main>
+
+    <script src="/static/lineups.js"></script>
+  </body>
+</html>

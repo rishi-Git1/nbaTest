@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from nba_api.stats.endpoints import leaguedashplayerbiostats, leaguedashplayerstats, leaguedashteamstats
+from nba_api.stats.endpoints import leaguedashlineups, leaguedashplayerbiostats, leaguedashplayerstats, leaguedashteamstats
 from nba_api.stats.static import players, teams
 
 ALLOWED_SORT_KEYS = {
@@ -338,11 +338,11 @@ def _compose_rows(
                 "player_name": row.get("PLAYER_NAME") or active_map[player_id],
                 "team": row.get("TEAM_ABBREVIATION"),
                 "team_id": int(row.get("TEAM_ID", 0)) if row.get("TEAM_ID") else None,
-                #"position": _normalize_position(
-                #    bio.get("PLAYER_POSITION")
-                #    or row.get("PLAYER_POSITION")
-                #    or row.get("POSITION")
-                #),
+                "position": _normalize_position(
+                    bio.get("PLAYER_POSITION")
+                    or row.get("PLAYER_POSITION")
+                    or row.get("POSITION")
+                ),
                 "gp": int(row.get("GP", 0)) if row.get("GP") is not None else None,
                 # Base stats
                 "ppg": _normalize_float(row.get("PTS")),
@@ -648,3 +648,124 @@ def sort_rows(rows: list[dict[str, Any]], sort_by: str, order: str) -> list[dict
         return value
 
     return sorted(rows, key=sort_key, reverse=reverse)
+
+
+LINEUP_SORT_LABELS = {
+    "MIN": "Minutes Together",
+    "GP": "Games Played",
+    "W": "Wins",
+    "L": "Losses",
+    "W_PCT": "Win %",
+    "OFF_RATING": "Off Rating",
+    "DEF_RATING": "Def Rating",
+    "NET_RATING": "Net Rating",
+    "AST_PCT": "AST%",
+    "OREB_PCT": "OREB%",
+    "DREB_PCT": "DREB%",
+    "REB_PCT": "REB%",
+    "TS_PCT": "TS%",
+    "EFG_PCT": "eFG%",
+    "TOV_PCT": "TOV%",
+    "PACE": "Pace",
+    "PIE": "PIE",
+    "PLUS_MINUS": "+/-",
+}
+
+
+def get_lineup_sort_options() -> list[dict[str, str]]:
+    return [{"key": key, "label": label} for key, label in LINEUP_SORT_LABELS.items()]
+
+
+def _fetch_lineups_for_team(season: str, team_id: int) -> list[dict[str, Any]]:
+    endpoint = leaguedashlineups.LeagueDashLineups(
+        season=season,
+        season_type_all_star="Regular Season",
+        team_id_nullable=str(team_id),
+        per_mode_detailed="Totals",
+        measure_type_detailed_defense="Advanced",
+        group_quantity="5",
+    )
+    return endpoint.get_data_frames()[0].to_dict("records")
+
+
+def get_team_lineups(
+    team_id: int,
+    season: str,
+    top_n: int,
+    min_minutes: float,
+    min_games: int,
+    sort_by: str,
+    order: str,
+) -> dict[str, Any]:
+    if sort_by not in LINEUP_SORT_LABELS:
+        raise ValueError(f"Invalid lineup sort_by '{sort_by}'.")
+
+    key = (season, f"lineups:{team_id}")
+    rows = cache.get(key)
+    if rows is None:
+        try:
+            rows = _fetch_lineups_for_team(season=season, team_id=team_id)
+            cache.set(key, rows)
+        except Exception as exc:  # noqa: BLE001
+            stale = cache.get_stale(key)
+            if stale is None:
+                raise
+            print(f"[nba_stats] lineups fetch failed, returning stale cache: {exc}")
+            rows = stale
+
+    teams_by_id = {int(t["id"]): t for t in get_teams_directory()}
+    team_info = teams_by_id.get(int(team_id), {"id": int(team_id), "full_name": f"TEAM {team_id}", "abbreviation": "N/A"})
+
+    filtered = [
+        row
+        for row in rows
+        if float(row.get("MIN", 0) or 0) >= float(min_minutes)
+        and int(float(row.get("GP", 0) or 0)) >= int(min_games)
+    ]
+
+    reverse = order.lower() == "desc"
+
+    def lineup_sort_key(item: dict[str, Any]):
+        value = item.get(sort_by)
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return float("-inf") if reverse else float("inf")
+
+    filtered = sorted(filtered, key=lineup_sort_key, reverse=reverse)
+    top_rows = filtered[:top_n]
+
+    normalized = []
+    for idx, row in enumerate(top_rows, start=1):
+        normalized.append(
+            {
+                "rank": idx,
+                "lineup": row.get("GROUP_NAME") or row.get("GROUP_ID") or "N/A",
+                "min": _normalize_float(row.get("MIN")),
+                "gp": int(row.get("GP", 0)) if row.get("GP") is not None else None,
+                "off_rating": _normalize_float(row.get("OFF_RATING")),
+                "def_rating": _normalize_float(row.get("DEF_RATING")),
+                "net_rating": _normalize_float(row.get("NET_RATING")),
+                "ast_pct": _normalize_float(row.get("AST_PCT")),
+                "reb_pct": _normalize_float(row.get("REB_PCT")),
+                "efg_pct": _normalize_float(row.get("EFG_PCT")),
+                "ts_pct": _normalize_float(row.get("TS_PCT")),
+                "pie": _normalize_float(row.get("PIE")),
+            }
+        )
+
+    return {
+        "meta": {
+            "season": season,
+            "team_id": team_info["id"],
+            "team_name": team_info["full_name"],
+            "team_abbreviation": team_info["abbreviation"],
+            "top_n": top_n,
+            "min_minutes": min_minutes,
+            "min_games": min_games,
+            "sort_by": sort_by,
+            "order": order,
+            "total": len(filtered),
+        },
+        "data": normalized,
+    }

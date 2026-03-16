@@ -12,6 +12,8 @@ from app.services import (
     get_award_presets,
     get_current_season,
     get_recent_seasons,
+    get_team_lineups,
+    get_lineup_sort_options,
     get_team_vs_team,
     get_teams_directory,
     sort_rows,
@@ -96,6 +98,22 @@ def awards_formula_page(request: Request):
     )
 
 
+@app.get("/lineups", response_class=HTMLResponse)
+@app.get("/lineups/", response_class=HTMLResponse)
+@app.get("/lineup", response_class=HTMLResponse)
+@app.get("/lineup/", response_class=HTMLResponse)
+def lineups_page(request: Request):
+    return templates.TemplateResponse(
+        "lineups.html",
+        {
+            "request": request,
+            "default_season": get_current_season(),
+            "teams": get_teams_directory(),
+            "lineup_sort_options": get_lineup_sort_options(),
+        },
+    )
+
+
 @app.get("/api/players", response_model=PlayerStatsResponse)
 def list_players(
     season: str = Query(default_factory=get_current_season),
@@ -136,6 +154,31 @@ def head_to_head(
 ):
     try:
         return get_team_vs_team(season1=season_1, team1_id=team1_id, season2=season_2, team2_id=team2_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Upstream data fetch failed: {exc}") from exc
+
+
+@app.get("/api/lineups")
+def lineups(
+    team_id: int = Query(..., ge=1),
+    top_n: int = Query(20, ge=1, le=100),
+    min_minutes: float = Query(0, ge=0),
+    min_games: int = Query(0, ge=0),
+    sort_by: str = Query("NET_RATING"),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
+):
+    try:
+        return get_team_lineups(
+            team_id=team_id,
+            season=get_current_season(),
+            top_n=top_n,
+            min_minutes=min_minutes,
+            min_games=min_games,
+            sort_by=sort_by,
+            order=order,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001

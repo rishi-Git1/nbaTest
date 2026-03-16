@@ -190,7 +190,8 @@ td:nth-child(2) {
   gap: 10px;
 }
 
-#awards-controls {
+#awards-controls,
+#lineups-controls {
   display: flex;
   gap: 12px;
   align-items: end;
