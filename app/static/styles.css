@@ -270,3 +270,38 @@ td:nth-child(2) {
 .career-table td:nth-child(2) {
   text-align: left;
 }
+
+#ge-date-controls,
+#ge-matchup-controls {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.analysis-stack {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.hidden {
+  display: none;
+}
+
+.key-factor-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.summary-table .team-col.loser {
+  color: #ff7b72;
+}
+
+#ge-games-table button {
+  padding: 6px 10px;
+  font-size: 11px;
+}

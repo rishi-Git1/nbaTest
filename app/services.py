@@ -6,7 +6,7 @@ from typing import Any
 
 import pandas as pd
 
-from nba_api.stats.endpoints import leaguegamefinder, leaguedashlineups, leaguedashplayerbiostats, leaguedashplayerstats, leaguedashteamstats, playercareerstats
+from nba_api.stats.endpoints import boxscoreadvancedv2, boxscoreadvancedv3, boxscoretraditionalv2, boxscoretraditionalv3, leaguegamefinder, leaguedashlineups, leaguedashplayerbiostats, leaguedashplayerstats, leaguedashteamstats, playercareerstats
 from nba_api.stats.static import players, teams
 
 ALLOWED_SORT_KEYS = {
@@ -336,7 +336,7 @@ def _get_advanced_rows_by_season(season: str) -> dict[int, dict[str, Any]]:
 def _coerce_season_id(value: Any) -> str:
     season = str(value or "").strip()
     if len(season) == 5 and season.isdigit():
-        start = int(season[:4])
+        start = int(season[-4:])
         return f"{start}-{str(start + 1)[-2:]}"
     return season
 
@@ -1261,6 +1261,436 @@ def get_player_similarity(
         },
         "data": top_rows,
     }
+
+
+GAME_EXPLAINER_METRICS = [
+    {"key": "pts", "label": "PTS", "lower_is_better": False},
+    {"key": "reb", "label": "REB", "lower_is_better": False},
+    {"key": "ast", "label": "AST", "lower_is_better": False},
+    {"key": "tov", "label": "TOV", "lower_is_better": True},
+    {"key": "pf", "label": "FOULS", "lower_is_better": True},
+    {"key": "fg_pct", "label": "FG%", "lower_is_better": False},
+    {"key": "fg3_pct", "label": "3P%", "lower_is_better": False},
+    {"key": "ft_pct", "label": "FT%", "lower_is_better": False},
+    {"key": "plus_minus", "label": "+/-", "lower_is_better": False},
+    {"key": "off_rating", "label": "OFF RTG", "lower_is_better": False},
+    {"key": "def_rating", "label": "DEF RTG", "lower_is_better": True},
+    {"key": "net_rating", "label": "NET RTG", "lower_is_better": False},
+    {"key": "pace", "label": "PACE", "lower_is_better": False},
+]
+
+
+def _season_range(start_season: str | None, end_season: str | None) -> list[str]:
+    default = get_current_season()
+    start_value = start_season or default
+    end_value = end_season or start_value
+
+    try:
+        start_year = int(str(start_value).split("-")[0])
+        end_year = int(str(end_value).split("-")[0])
+    except (TypeError, ValueError, IndexError) as exc:
+        raise ValueError("Invalid season range.") from exc
+
+    low = min(start_year, end_year)
+    high = max(start_year, end_year)
+    return [f"{year}-{str(year + 1)[-2:]}" for year in range(high, low - 1, -1)]
+
+
+def _fetch_game_explainer_game_rows(season: str, season_type: str = "Regular Season") -> list[dict[str, Any]]:
+    try:
+        endpoint = leaguegamefinder.LeagueGameFinder(
+            season_nullable=season,
+            season_type_nullable=season_type,
+            player_or_team_abbreviation="T",
+        )
+    except TypeError:
+        endpoint = leaguegamefinder.LeagueGameFinder(
+            season_nullable=season,
+            season_type_nullable=season_type,
+        )
+    return endpoint.get_data_frames()[0].to_dict("records")
+
+
+def _normalize_minutes_value(value: Any) -> float:
+    if value is None:
+        return 0.0
+    text = str(value).strip()
+    if not text:
+        return 0.0
+    if ":" in text:
+        parts = text.split(":")
+        try:
+            minutes = float(parts[0])
+            seconds = float(parts[1]) if len(parts) > 1 else 0.0
+            return round(minutes + seconds / 60.0, 3)
+        except ValueError:
+            return 0.0
+    try:
+        return float(text)
+    except ValueError:
+        return 0.0
+
+
+def _get_game_explainer_games_df(season: str, season_type: str = "Regular Season") -> pd.DataFrame:
+    key = (season, f"game_explainer_games:{season_type.lower().replace(' ', '_')}")
+    cached = cache.get(key)
+    if cached is not None:
+        return pd.DataFrame(cached)
+
+    try:
+        rows = _fetch_game_explainer_game_rows(season=season, season_type=season_type)
+        df = pd.DataFrame(rows)
+        if df.empty:
+            cache.set(key, [])
+            return df
+
+        if "TEAM_ID" not in df.columns or "GAME_ID" not in df.columns:
+            raise ValueError("Game data did not include required team fields.")
+
+        df = df.copy()
+        df["GAME_DATE"] = pd.to_datetime(df.get("GAME_DATE"), errors="coerce")
+        df = df.dropna(subset=["GAME_DATE"])
+        df = df.drop_duplicates(subset=["GAME_ID", "TEAM_ID"])
+        for col in ["PTS"]:
+            if col not in df.columns:
+                df[col] = 0
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+
+        payload = df.to_dict("records")
+        cache.set(key, payload)
+        return df
+    except Exception:
+        stale = cache.get_stale(key)
+        if stale is not None:
+            return pd.DataFrame(stale)
+        raise
+
+
+def _build_unique_game_rows(df: pd.DataFrame) -> list[dict[str, Any]]:
+    if df.empty:
+        return []
+
+    results: list[dict[str, Any]] = []
+    for game_id, group in df.groupby("GAME_ID"):
+        rows = group.to_dict("records")
+        if not rows:
+            continue
+
+        rows = sorted(rows, key=lambda row: (0 if "vs." in str(row.get("MATCHUP") or "") else 1, str(row.get("TEAM_ABBREVIATION") or "")))
+        home = next((row for row in rows if "vs." in str(row.get("MATCHUP") or "")), rows[0])
+        away = next((row for row in rows if row is not home), rows[0] if len(rows) == 1 else rows[1])
+
+        results.append(
+            {
+                "game_id": str(game_id),
+                "game_date": home.get("GAME_DATE").strftime("%Y-%m-%d") if pd.notna(home.get("GAME_DATE")) else None,
+                "season_id": str(home.get("SEASON_ID") or ""),
+                "season": _coerce_season_id(home.get("SEASON_ID")),
+                "matchup": f"{away.get('TEAM_ABBREVIATION', 'AWY')} @ {home.get('TEAM_ABBREVIATION', 'HME')}",
+                "score": f"{away.get('TEAM_ABBREVIATION', 'AWY')} {int(away.get('PTS', 0))} - {int(home.get('PTS', 0))} {home.get('TEAM_ABBREVIATION', 'HME')}",
+                "team_1_id": int(away.get("TEAM_ID")) if away.get("TEAM_ID") is not None else None,
+                "team_2_id": int(home.get("TEAM_ID")) if home.get("TEAM_ID") is not None else None,
+                "team_1_abbreviation": away.get("TEAM_ABBREVIATION"),
+                "team_2_abbreviation": home.get("TEAM_ABBREVIATION"),
+                "team_1_name": away.get("TEAM_NAME"),
+                "team_2_name": home.get("TEAM_NAME"),
+                "team_1_pts": int(away.get("PTS", 0)),
+                "team_2_pts": int(home.get("PTS", 0)),
+            }
+        )
+
+    return sorted(results, key=lambda row: (row.get("game_date") or "", row.get("game_id") or ""), reverse=True)
+
+
+def get_game_explainer_games(
+    date: str | None = None,
+    team1_id: int | None = None,
+    team2_id: int | None = None,
+    season_start: str | None = None,
+    season_end: str | None = None,
+    season_type: str = "Regular Season",
+) -> dict[str, Any]:
+    if date:
+        pd.to_datetime(date, errors="raise")
+    elif not (team1_id and team2_id):
+        raise ValueError("Provide either a date or both teams.")
+    elif int(team1_id) == int(team2_id):
+        raise ValueError("Choose two different teams for matchup search.")
+
+    seasons = _season_range(season_start, season_end)
+    frames = [_get_game_explainer_games_df(season=season, season_type=season_type) for season in seasons]
+    frames = [frame for frame in frames if not frame.empty]
+    if not frames:
+        return {"meta": {"total": 0, "seasons": seasons, "season_type": season_type}, "data": []}
+
+    combined = pd.concat(frames, ignore_index=True)
+    if date:
+        target_date = pd.to_datetime(date).date()
+        combined = combined[combined["GAME_DATE"].dt.date == target_date]
+    else:
+        team_ids = {int(team1_id), int(team2_id)}
+        combined = combined[combined["TEAM_ID"].isin(team_ids)]
+
+    unique_games = _build_unique_game_rows(combined)
+    if not date:
+        unique_games = [row for row in unique_games if {row.get("team_1_id"), row.get("team_2_id")} == {int(team1_id), int(team2_id)}]
+
+    return {
+        "meta": {
+            "date": date,
+            "team1_id": team1_id,
+            "team2_id": team2_id,
+            "season_start": seasons[-1],
+            "season_end": seasons[0],
+            "season_type": season_type,
+            "total": len(unique_games),
+        },
+        "data": unique_games,
+    }
+
+
+def _normalize_boxscore_traditional_v3(player_stats: pd.DataFrame, team_stats: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    player_df = player_stats.rename(
+        columns={
+            "personId": "PLAYER_ID",
+            "teamId": "TEAM_ID",
+            "teamTricode": "TEAM_ABBREVIATION",
+            "minutes": "MIN",
+            "points": "PTS",
+            "reboundsTotal": "REB",
+            "assists": "AST",
+            "fieldGoalsMade": "FGM",
+            "fieldGoalsAttempted": "FGA",
+            "threePointersMade": "FG3M",
+            "plusMinusPoints": "PLUS_MINUS",
+        }
+    ).copy()
+    if "PLAYER_NAME" not in player_df.columns:
+        player_df["PLAYER_NAME"] = (player_df.get("firstName", "").fillna("") + " " + player_df.get("familyName", "").fillna("")).str.strip()
+        if "nameI" in player_df.columns:
+            player_df.loc[player_df["PLAYER_NAME"] == "", "PLAYER_NAME"] = player_df.loc[player_df["PLAYER_NAME"] == "", "nameI"]
+
+    team_df = team_stats.rename(
+        columns={
+            "teamId": "TEAM_ID",
+            "teamName": "TEAM_NAME",
+            "teamTricode": "TEAM_ABBREVIATION",
+            "minutes": "MIN",
+            "points": "PTS",
+            "reboundsTotal": "REB",
+            "assists": "AST",
+            "turnovers": "TO",
+            "foulsPersonal": "PF",
+            "fieldGoalsPercentage": "FG_PCT",
+            "threePointersPercentage": "FG3_PCT",
+            "freeThrowsPercentage": "FT_PCT",
+            "plusMinusPoints": "PLUS_MINUS",
+            "gameId": "GAME_ID",
+        }
+    ).copy()
+    return player_df, team_df
+
+
+def _normalize_boxscore_advanced_v3(player_stats: pd.DataFrame, team_stats: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    player_df = player_stats.rename(
+        columns={
+            "personId": "PLAYER_ID",
+            "teamId": "TEAM_ID",
+            "usagePercentage": "USG_PCT",
+            "trueShootingPercentage": "TS_PCT",
+        }
+    ).copy()
+    team_df = team_stats.rename(
+        columns={
+            "teamId": "TEAM_ID",
+            "teamName": "TEAM_NAME",
+            "teamTricode": "TEAM_ABBREVIATION",
+            "offensiveRating": "OFF_RATING",
+            "defensiveRating": "DEF_RATING",
+            "netRating": "NET_RATING",
+            "pace": "PACE",
+        }
+    ).copy()
+    return player_df, team_df
+
+
+def _fetch_boxscore_traditional(game_id: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    try:
+        endpoint = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id)
+        frames = endpoint.get_data_frames()
+        return frames[0].copy(), frames[1].copy()
+    except Exception:
+        endpoint = boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id)
+        frames = endpoint.get_data_frames()
+        return _normalize_boxscore_traditional_v3(frames[0], frames[1])
+
+
+def _fetch_boxscore_advanced(game_id: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    try:
+        endpoint = boxscoreadvancedv2.BoxScoreAdvancedV2(game_id=game_id)
+        frames = endpoint.get_data_frames()
+        return frames[0].copy(), frames[1].copy()
+    except Exception:
+        endpoint = boxscoreadvancedv3.BoxScoreAdvancedV3(game_id=game_id)
+        frames = endpoint.get_data_frames()
+        return _normalize_boxscore_advanced_v3(frames[0], frames[1])
+
+
+def _game_explainer_winner(value1: Any, value2: Any, lower_is_better: bool) -> str:
+    if value1 is None or value2 is None:
+        return "none"
+    if value1 == value2:
+        return "tie"
+    if lower_is_better:
+        return "team_1" if value1 < value2 else "team_2"
+    return "team_1" if value1 > value2 else "team_2"
+
+
+def _normalize_game_explainer_team_rows(team_stats: pd.DataFrame, adv_team: pd.DataFrame) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    merged = team_stats.merge(adv_team, on=["TEAM_ID"], how="left", suffixes=("", "_ADV"))
+    if merged.empty or len(merged.index) < 2:
+        raise ValueError("Team box score data was unavailable for that game.")
+
+    team_rows = []
+    for _, row in merged.iterrows():
+        team_rows.append(
+            {
+                "team_id": int(row.get("TEAM_ID")),
+                "team_name": row.get("TEAM_NAME"),
+                "team_abbreviation": row.get("TEAM_ABBREVIATION"),
+                "pts": int(row.get("PTS", 0)),
+                "reb": int(row.get("REB", 0)),
+                "ast": int(row.get("AST", 0)),
+                "tov": int(row.get("TO", row.get("TOV", 0))),
+                "pf": int(row.get("PF", 0)),
+                "fg_pct": _normalize_float(row.get("FG_PCT")),
+                "fg3_pct": _normalize_float(row.get("FG3_PCT")),
+                "ft_pct": _normalize_float(row.get("FT_PCT")),
+                "plus_minus": _normalize_float(row.get("PLUS_MINUS")),
+                "off_rating": _normalize_float(row.get("OFF_RATING")),
+                "def_rating": _normalize_float(row.get("DEF_RATING")),
+                "net_rating": _normalize_float(row.get("NET_RATING")),
+                "pace": _normalize_float(row.get("PACE")),
+            }
+        )
+
+    team_rows = sorted(team_rows, key=lambda row: row.get("pts") or 0, reverse=True)
+    team_1 = team_rows[0]
+    team_2 = team_rows[1]
+
+    comparison_rows = []
+    for metric in GAME_EXPLAINER_METRICS:
+        value_1 = team_1.get(metric["key"])
+        value_2 = team_2.get(metric["key"])
+        comparison_rows.append(
+            {
+                "key": metric["key"],
+                "label": metric["label"],
+                "team_1_value": value_1,
+                "team_2_value": value_2,
+                "lower_is_better": metric["lower_is_better"],
+                "winner": _game_explainer_winner(value_1, value_2, metric["lower_is_better"]),
+            }
+        )
+
+    winner_team = team_1 if (team_1.get("pts") or 0) >= (team_2.get("pts") or 0) else team_2
+    metadata = {
+        "winner_team_name": winner_team.get("team_name"),
+        "winner_team_abbreviation": winner_team.get("team_abbreviation"),
+        "score": f"{team_1.get('team_abbreviation')} {team_1.get('pts')} - {team_2.get('pts')} {team_2.get('team_abbreviation')}",
+        "matchup": f"{team_2.get('team_abbreviation')} @ {team_1.get('team_abbreviation')}",
+    }
+    return team_rows, comparison_rows, metadata
+
+
+def _normalize_game_explainer_player_rows(player_stats: pd.DataFrame, adv_players: pd.DataFrame) -> list[dict[str, Any]]:
+    merged = player_stats.merge(adv_players, on=["PLAYER_ID", "TEAM_ID"], how="left", suffixes=("", "_ADV"))
+    rows = []
+    for _, row in merged.iterrows():
+        rows.append(
+            {
+                "player_id": int(row.get("PLAYER_ID")),
+                "player_name": row.get("PLAYER_NAME"),
+                "team_id": int(row.get("TEAM_ID")),
+                "team_abbreviation": row.get("TEAM_ABBREVIATION"),
+                "minutes": _normalize_minutes_value(row.get("MIN")),
+                "minutes_display": row.get("MIN"),
+                "pts": int(row.get("PTS", 0)),
+                "reb": int(row.get("REB", 0)),
+                "ast": int(row.get("AST", 0)),
+                "fgm": int(row.get("FGM", 0)),
+                "fga": int(row.get("FGA", 0)),
+                "fg3m": int(row.get("FG3M", 0)),
+                "plus_minus": _normalize_float(row.get("PLUS_MINUS")),
+                "usg_pct": _normalize_float(row.get("USG_PCT")),
+                "ts_pct": _normalize_float(row.get("TS_PCT")),
+            }
+        )
+
+    rows.sort(key=lambda row: (-(row.get("pts") or 0), -(row.get("reb") or 0), -(row.get("ast") or 0), row.get("player_name") or ""))
+    return rows
+
+
+def _build_game_explainer_key_factors(comparison_rows: list[dict[str, Any]], team_rows: list[dict[str, Any]]) -> list[str]:
+    team_lookup = {"team_1": team_rows[0], "team_2": team_rows[1]}
+    factors = []
+    scored = []
+    for row in comparison_rows:
+        value_1 = row.get("team_1_value")
+        value_2 = row.get("team_2_value")
+        if value_1 is None or value_2 is None or row.get("winner") in {"none", "tie"}:
+            continue
+        diff = abs(float(value_1) - float(value_2))
+        scored.append((diff, row))
+
+    for _, row in sorted(scored, key=lambda item: item[0], reverse=True)[:3]:
+        winner = team_lookup[row["winner"]]
+        loser = team_lookup["team_1" if row["winner"] == "team_2" else "team_2"]
+        factors.append(
+            f"{winner['team_name']} won {row['label']} ({winner.get(row['key'])} vs {loser.get(row['key'])})."
+        )
+
+    if not factors:
+        factors.append("No standout edge was detected from the available box-score categories.")
+    return factors
+
+
+def get_game_explainer_analysis(game_id: str) -> dict[str, Any]:
+    key = (str(game_id), "game_explainer_analysis")
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+
+    try:
+        player_stats, team_stats = _fetch_boxscore_traditional(game_id=game_id)
+        adv_players, adv_team = _fetch_boxscore_advanced(game_id=game_id)
+
+        team_rows, comparison_rows, metadata = _normalize_game_explainer_team_rows(team_stats=team_stats, adv_team=adv_team)
+        player_rows = _normalize_game_explainer_player_rows(player_stats=player_stats, adv_players=adv_players)
+        top_performers = player_rows[:5]
+        game_date = None
+        if "GAME_DATE_EST" in team_stats.columns and not team_stats.empty:
+            game_date = pd.to_datetime(team_stats.iloc[0].get("GAME_DATE_EST"), errors="coerce")
+
+        payload = {
+            "meta": {
+                "game_id": str(game_id),
+                "game_date": game_date.strftime("%Y-%m-%d") if pd.notna(game_date) else None,
+                **metadata,
+            },
+            "key_factors": _build_game_explainer_key_factors(comparison_rows, team_rows),
+            "team_comparison": comparison_rows,
+            "teams": team_rows,
+            "top_performers": top_performers,
+            "players": player_rows,
+        }
+        cache.set(key, payload)
+        return payload
+    except Exception:
+        stale = cache.get_stale(key)
+        if stale is not None:
+            return stale
+        raise
 
 
 def _fetch_game_finder_rows(season: str, season_type: str = "Regular Season") -> list[dict[str, Any]]:

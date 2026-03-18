@@ -24,6 +24,7 @@ This project is a starter NBA stats site powered by [`nba_api`](https://pypi.org
 - Added a **Lineups** page (`/lineups`) for current-season team lineup filtering (Top N, minimum minutes together, sortable lineup stats).
 - Added a **Player Similarity** page (`/player-similarity`) that computes weighted cosine similarity using normalized player stats, optional shot-diet features, and optional archetype-only comparisons.
 - Added a **Game Finder** page (`/game-finder`) for custom stat-based game search, “On This Day” results across recent seasons, and breakout game detection.
+- Added a **Game Explainer** page (`/game-explainer`) for searching games by date or matchup and generating full game breakdowns with team comparison colors, key factors, and player tables.
 - Added a **Player Career Stats** page (`/player-career`) for simple player-name lookup with career averages, season-by-season team history, and an advanced stats toggle.
 - In-memory TTL caching with stale fallback on upstream fetch failure.
 
@@ -217,3 +218,29 @@ Returns:
 - `seasons` rows with season, team, and the same base/advanced stat fields used by the page toggle
 
 This page uses `PlayerCareerStats` for season totals, then derives per-game career averages and merges advanced season metrics from `LeagueDashPlayerStats`.
+
+### `GET /api/game-explainer/games`
+
+Search game candidates by either exact date or a team-vs-team matchup across a season range.
+
+Query parameters:
+
+- `date` OR `team1_id` + `team2_id`
+- `season_start`, `season_end`
+- `season_type` (`Regular Season` or `Playoffs`)
+
+Returns game rows with `game_date`, `matchup`, `score`, `season`, and `game_id`.
+
+### `GET /api/game-explainer/analysis`
+
+Load the full automated breakdown for a selected `game_id`.
+
+Returns:
+
+- winner + score metadata
+- key-factor explanation strings
+- team comparison rows (with lower-is-better handling for fouls, turnovers, and defensive rating)
+- top performers
+- full player summary table
+
+Uses `LeagueGameFinder`, plus `BoxScoreTraditionalV2` / `BoxScoreAdvancedV2` with a V3 fallback for modern seasons where V2 is no longer published.

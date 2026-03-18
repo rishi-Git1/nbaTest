@@ -1,3 +1,4 @@
+from datetime import datetime
 from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -20,6 +21,8 @@ from app.services import (
     get_lineup_sort_options,
     get_games_on_this_day,
     get_breakout_games,
+    get_game_explainer_analysis,
+    get_game_explainer_games,
     search_games,
     get_team_vs_team,
     get_teams_directory,
@@ -149,6 +152,21 @@ def game_finder_page(request: Request):
             "default_season": get_current_season(),
             "default_month": 3,
             "default_day": 17,
+        },
+    )
+
+
+@app.get("/game-explainer", response_class=HTMLResponse)
+def game_explainer_page(request: Request):
+    default_season = get_current_season()
+    return templates.TemplateResponse(
+        "game_explainer.html",
+        {
+            "request": request,
+            "default_season": default_season,
+            "seasons": get_recent_seasons(),
+            "teams": get_teams_directory(),
+            "default_date": datetime.utcnow().strftime("%Y-%m-%d"),
         },
     )
 
@@ -291,6 +309,40 @@ def lineups(
             sort_by=sort_by,
             order=order,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Upstream data fetch failed: {exc}") from exc
+
+
+@app.get("/api/game-explainer/games")
+def game_explainer_games(
+    date: str | None = Query(None),
+    team1_id: int | None = Query(None, ge=1),
+    team2_id: int | None = Query(None, ge=1),
+    season_start: str | None = Query(None),
+    season_end: str | None = Query(None),
+    season_type: str = Query("Regular Season"),
+):
+    try:
+        return get_game_explainer_games(
+            date=date,
+            team1_id=team1_id,
+            team2_id=team2_id,
+            season_start=season_start,
+            season_end=season_end,
+            season_type=season_type,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Upstream data fetch failed: {exc}") from exc
+
+
+@app.get("/api/game-explainer/analysis")
+def game_explainer_analysis(game_id: str = Query(..., min_length=6)):
+    try:
+        return get_game_explainer_analysis(game_id=game_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001

@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NBA Game Explainer</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}" />
+  </head>
+  <body>
+    <main>
+      <div class="top-row">
+        <h1>NBA Game Explainer</h1>
+        <div class="nav-group">
+          <a class="nav-button" href="/">PLAYERS</a>
+          <a class="nav-button" href="/players-playoffs">PLAYERS (PLAYOFFS)</a>
+          <a class="nav-button" href="/head-to-head">HEAD-TO-HEAD</a>
+          <a class="nav-button" href="/lineups">LINEUPS</a>
+          <a class="nav-button" href="/player-similarity">PLAYER SIMILARITY</a>
+          <a class="nav-button" href="/game-finder">GAME FINDER</a>
+          <a class="nav-button" href="/player-career">PLAYER CAREER STATS</a>
+          <a class="nav-button" href="/awards-formula">AWARDS FORMULA</a>
+        </div>
+      </div>
+
+      <p>Search by exact date or by two teams across a season range, then click a game to generate a post-game style breakdown.</p>
+
+      <section class="card">
+        <h2>SEARCH BY DATE</h2>
+        <form id="ge-date-controls">
+          <label>
+            DATE
+            <input name="date" type="date" value="{{ default_date }}" />
+          </label>
+          <label>
+            START SEASON
+            <select name="season_start">
+              {% for season in seasons %}
+              <option value="{{ season }}" {% if season == default_season %}selected{% endif %}>{{ season }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            END SEASON
+            <select name="season_end">
+              {% for season in seasons %}
+              <option value="{{ season }}" {% if season == default_season %}selected{% endif %}>{{ season }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            SEASON TYPE
+            <select name="season_type">
+              <option selected>Regular Season</option>
+              <option>Playoffs</option>
+            </select>
+          </label>
+          <button type="submit">FIND GAMES</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>SEARCH BY MATCHUP</h2>
+        <form id="ge-matchup-controls">
+          <label>
+            TEAM 1
+            <select name="team1_id">
+              {% for team in teams %}
+              <option value="{{ team.id }}">{{ team.full_name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            TEAM 2
+            <select name="team2_id">
+              {% for team in teams %}
+              <option value="{{ team.id }}">{{ team.full_name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            START SEASON
+            <select name="season_start">
+              {% for season in seasons %}
+              <option value="{{ season }}" {% if season == default_season %}selected{% endif %}>{{ season }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            END SEASON
+            <select name="season_end">
+              {% for season in seasons %}
+              <option value="{{ season }}" {% if season == default_season %}selected{% endif %}>{{ season }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            SEASON TYPE
+            <select name="season_type">
+              <option selected>Regular Season</option>
+              <option>Playoffs</option>
+            </select>
+          </label>
+          <button type="submit">FIND MATCHUPS</button>
+        </form>
+      </section>
+
+      <p id="ge-status">Run a date or matchup search to load games.</p>
+
+      <section class="card">
+        <h2>MATCHING GAMES</h2>
+        <div class="table-wrap">
+          <table id="ge-games-table">
+            <thead>
+              <tr>
+                <th>DATE</th>
+                <th>MATCHUP</th>
+                <th>SCORE</th>
+                <th>ACTION</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="ge-analysis" class="analysis-stack hidden">
+        <article class="card">
+          <h2 id="ge-analysis-title">GAME ANALYSIS</h2>
+          <p id="ge-analysis-subtitle"></p>
+          <ul id="ge-key-factors" class="key-factor-list"></ul>
+        </article>
+
+        <article class="card">
+          <h2>TEAM COMPARISON</h2>
+          <div class="table-wrap">
+            <table id="ge-team-comparison" class="summary-table">
+              <thead>
+                <tr>
+                  <th>METRIC</th>
+                  <th id="ge-team-1-header">TEAM 1</th>
+                  <th id="ge-team-2-header">TEAM 2</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>TOP PERFORMERS</h2>
+          <div class="table-wrap">
+            <table id="ge-top-performers">
+              <thead>
+                <tr>
+                  <th>PLAYER</th>
+                  <th>TEAM</th>
+                  <th>MIN</th>
+                  <th>PTS</th>
+                  <th>REB</th>
+                  <th>AST</th>
+                  <th>+/-</th>
+                  <th>USG%</th>
+                  <th>TS%</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>FULL PLAYER STATS</h2>
+          <div class="table-wrap">
+            <table id="ge-player-stats">
+              <thead>
+                <tr>
+                  <th>PLAYER</th>
+                  <th>TEAM</th>
+                  <th>MIN</th>
+                  <th>PTS</th>
+                  <th>REB</th>
+                  <th>AST</th>
+                  <th>FGM</th>
+                  <th>FGA</th>
+                  <th>FG3M</th>
+                  <th>+/-</th>
+                  <th>USG%</th>
+                  <th>TS%</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', path='game_explainer.js') }}"></script>
+  </body>
+</html>
