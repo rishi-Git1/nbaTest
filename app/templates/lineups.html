@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NBA Team Lineups</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}" />
   </head>
   <body>
     <main>
@@ -15,7 +15,7 @@
           <a class="nav-button" href="/players-playoffs">PLAYERS (PLAYOFFS)</a>
           <a class="nav-button" href="/head-to-head">HEAD-TO-HEAD</a>
           <a class="nav-button" href="/player-similarity">PLAYER SIMILARITY</a>
-          <a class="nav-button" href="/awards-formula">AWARDS FORMULA</a>
+          <a class="nav-button" href="/game-finder">GAME FINDER</a><a class="nav-button" href="/awards-formula">AWARDS FORMULA</a>
         </div>
       </div>
       <p>Explore current-season 5-man lineups for any team with minutes and performance filters.</p>
@@ -95,6 +95,6 @@
       </div>
     </main>
 
-    <script src="/static/lineups.js"></script>
+    <script src="{{ url_for('static', path='lineups.js') }}"></script>
   </body>
 </html>

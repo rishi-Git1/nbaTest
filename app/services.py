@@ -4,7 +4,9 @@ import time
 from datetime import datetime
 from typing import Any
 
-from nba_api.stats.endpoints import leaguedashlineups, leaguedashplayerbiostats, leaguedashplayerstats, leaguedashteamstats
+import pandas as pd
+
+from nba_api.stats.endpoints import leaguegamefinder, leaguedashlineups, leaguedashplayerbiostats, leaguedashplayerstats, leaguedashteamstats
 from nba_api.stats.static import players, teams
 
 ALLOWED_SORT_KEYS = {
@@ -995,4 +997,280 @@ def get_player_similarity(
             "shot_diet_source": "season-stats-proxy" if shot_diet_included else None,
         },
         "data": top_rows,
+    }
+
+
+def _fetch_game_finder_rows(season: str, season_type: str = "Regular Season") -> list[dict[str, Any]]:
+    # Prefer player game logs so PLAYER_NAME is available for search/breakouts.
+    try:
+        endpoint = leaguegamefinder.LeagueGameFinder(
+            season_nullable=season,
+            season_type_nullable=season_type,
+            player_or_team_abbreviation="P",
+        )
+    except TypeError:
+        # Compatibility fallback for nba_api versions without this parameter.
+        endpoint = leaguegamefinder.LeagueGameFinder(
+            season_nullable=season,
+            season_type_nullable=season_type,
+        )
+    return endpoint.get_data_frames()[0].to_dict("records")
+
+
+def _preprocess_game_finder_df(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+
+    df = df.copy()
+
+    # Never invent fake names; keep only real player-name rows.
+    if "PLAYER_NAME" not in df.columns:
+        return pd.DataFrame(columns=df.columns)
+
+    df["PLAYER_NAME"] = df["PLAYER_NAME"].astype(str).str.strip()
+    df = df[~df["PLAYER_NAME"].str.lower().isin(["", "nan", "none", "unknown"])]
+    if df.empty:
+        return df
+
+    if "MATCHUP" not in df.columns:
+        df["MATCHUP"] = "N/A"
+
+    # Some LeagueGameFinder responses can omit PLAYER_ID; derive stable IDs by name.
+    if "PLAYER_ID" not in df.columns:
+        df["PLAYER_ID"] = pd.factorize(df["PLAYER_NAME"])[0] + 1
+
+    if "GAME_DATE" in df.columns:
+        df["GAME_DATE"] = pd.to_datetime(df["GAME_DATE"], errors="coerce")
+        df = df.dropna(subset=["GAME_DATE"])
+        df["MONTH_DAY"] = df["GAME_DATE"].dt.strftime("%m-%d")
+    else:
+        df["GAME_DATE"] = pd.NaT
+        df["MONTH_DAY"] = ""
+
+    dedupe_cols = [col for col in ["GAME_ID", "PLAYER_ID"] if col in df.columns]
+    if dedupe_cols:
+        df = df.drop_duplicates(subset=dedupe_cols)
+
+    if "MIN" not in df.columns:
+        df["MIN"] = 0
+    df["MIN"] = pd.to_numeric(df["MIN"], errors="coerce").fillna(0)
+    df = df[df["MIN"] > 10]
+
+    numeric_cols = [
+        "PTS", "REB", "AST", "FGM", "FGA", "FG3M", "FTA", "FTM", "OREB", "DREB", "STL", "BLK", "PF", "TOV",
+    ]
+    for col in numeric_cols:
+        if col not in df.columns:
+            df[col] = 0
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+    return df
+
+
+def _get_game_finder_df(season: str, season_type: str = "Regular Season") -> pd.DataFrame:
+    key = (season, f"game_finder:{season_type.lower().replace(' ', '_')}")
+    cached = cache.get(key)
+    if cached is not None:
+        return pd.DataFrame(cached)
+
+    try:
+        rows = _fetch_game_finder_rows(season=season, season_type=season_type)
+        df = _preprocess_game_finder_df(pd.DataFrame(rows))
+        payload = df.to_dict("records")
+        cache.set(key, payload)
+        return df
+    except Exception as exc:  # noqa: BLE001
+        stale = cache.get_stale(key)
+        if stale is not None:
+            return pd.DataFrame(stale)
+        raise
+
+
+def _get_multi_season_game_finder_df(seasons: list[str], season_type: str = "Regular Season") -> pd.DataFrame:
+    frames = [_get_game_finder_df(season=season, season_type=season_type) for season in seasons]
+    frames = [f for f in frames if not f.empty]
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
+
+
+def add_game_score(df: pd.DataFrame) -> pd.DataFrame:
+    scored = df.copy()
+    for col in ["PTS", "FGM", "FGA", "FTA", "FTM", "OREB", "DREB", "STL", "AST", "BLK", "PF", "TOV"]:
+        if col not in scored.columns:
+            scored[col] = 0
+        scored[col] = pd.to_numeric(scored[col], errors="coerce").fillna(0)
+
+    scored["GAME_SCORE"] = (
+        scored["PTS"]
+        + 0.4 * scored["FGM"]
+        - 0.7 * scored["FGA"]
+        - 0.4 * (scored["FTA"] - scored["FTM"])
+        + 0.7 * scored["OREB"]
+        + 0.3 * scored["DREB"]
+        + scored["STL"]
+        + 0.7 * scored["AST"]
+        + 0.7 * scored["BLK"]
+        - 0.4 * scored["PF"]
+        - scored["TOV"]
+    )
+    return scored
+
+
+def _add_breakout_scores(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+
+    player_avg = (
+        df.groupby("PLAYER_ID", as_index=False)
+        .agg({"PTS": "mean", "AST": "mean", "REB": "mean"})
+        .rename(columns={"PTS": "PTS_AVG", "AST": "AST_AVG", "REB": "REB_AVG"})
+    )
+
+    merged = df.merge(player_avg, on="PLAYER_ID", how="left")
+    merged["BREAKOUT_SCORE"] = (
+        (merged["PTS"] - merged["PTS_AVG"]) * 1.5
+        + (merged["AST"] - merged["AST_AVG"]) * 1.2
+        + (merged["REB"] - merged["REB_AVG"]) * 1.0
+    )
+    return merged
+
+
+def _normalize_player_name_for_match(value: str | None) -> str:
+    if value is None:
+        return ""
+    return " ".join(str(value).casefold().split())
+
+
+def _normalize_game_rows(df: pd.DataFrame, include_game_score: bool = False, include_breakout: bool = False) -> list[dict[str, Any]]:
+    if df.empty:
+        return []
+
+    payload: list[dict[str, Any]] = []
+    for _, row in df.iterrows():
+        item = {
+            "player_name": row.get("PLAYER_NAME"),
+            "game_date": row.get("GAME_DATE").strftime("%Y-%m-%d") if pd.notna(row.get("GAME_DATE")) else None,
+            "matchup": row.get("MATCHUP"),
+            "pts": int(row.get("PTS", 0)),
+            "reb": int(row.get("REB", 0)),
+            "ast": int(row.get("AST", 0)),
+            "fgm": int(row.get("FGM", 0)),
+            "fga": int(row.get("FGA", 0)),
+            "fg3m": int(row.get("FG3M", 0)),
+        }
+        if include_game_score:
+            item["game_score"] = round(float(row.get("GAME_SCORE", 0.0)), 3)
+        if include_breakout:
+            item["breakout_score"] = round(float(row.get("BREAKOUT_SCORE", 0.0)), 3)
+        payload.append(item)
+    return payload
+
+
+def search_games(
+    season: str,
+    season_type: str,
+    filters: dict[str, Any],
+    top_n: int = 100,
+) -> dict[str, Any]:
+    df = _get_game_finder_df(season=season, season_type=season_type)
+    result = df.copy()
+
+    pts_min = filters.get("pts_min")
+    fg3m_min = filters.get("fg3m_min")
+    ast_min = filters.get("ast_min")
+    reb_min = filters.get("reb_min")
+    player = filters.get("player")
+    date = filters.get("date")
+
+    if pts_min is not None:
+        result = result[result["PTS"] >= int(pts_min)]
+    if fg3m_min is not None:
+        result = result[result["FG3M"] >= int(fg3m_min)]
+    if ast_min is not None:
+        result = result[result["AST"] >= int(ast_min)]
+    if reb_min is not None:
+        result = result[result["REB"] >= int(reb_min)]
+    if player:
+        target_player = _normalize_player_name_for_match(player)
+        result = result[result["PLAYER_NAME"].map(_normalize_player_name_for_match) == target_player]
+    if date:
+        target_date = pd.to_datetime(str(date), errors="coerce")
+        if pd.notna(target_date):
+            result = result[result["GAME_DATE"].dt.date == target_date.date()]
+
+    result = add_game_score(result).sort_values(["PTS", "GAME_SCORE"], ascending=False)
+    result = result.head(max(1, min(int(top_n), 500)))
+
+    return {
+        "meta": {
+            "season": season,
+            "season_type": season_type,
+            "filters": {
+                "pts_min": pts_min,
+                "fg3m_min": fg3m_min,
+                "ast_min": ast_min,
+                "reb_min": reb_min,
+                "player": player,
+                "date": date,
+            },
+            "total": int(len(result)),
+        },
+        "data": _normalize_game_rows(result, include_game_score=True),
+    }
+
+
+def get_games_on_this_day(month: int, day: int, season_type: str = "Regular Season", years: int = 20, top_n: int = 50) -> dict[str, Any]:
+    seasons = get_recent_seasons(count=max(1, years))
+    df = _get_multi_season_game_finder_df(seasons=seasons, season_type=season_type)
+    if df.empty:
+        return {"meta": {"month": month, "day": day, "season_type": season_type, "total": 0}, "data": []}
+
+    target = f"{int(month):02d}-{int(day):02d}"
+    result = df[df["MONTH_DAY"] == target]
+    result = add_game_score(result).sort_values("GAME_SCORE", ascending=False)
+    result = result.head(max(1, min(int(top_n), 500)))
+
+    return {
+        "meta": {
+            "month": int(month),
+            "day": int(day),
+            "season_type": season_type,
+            "season_count": len(seasons),
+            "total": int(len(result)),
+        },
+        "data": _normalize_game_rows(result, include_game_score=True),
+    }
+
+
+def get_breakout_games(
+    season: str,
+    season_type: str = "Regular Season",
+    min_breakout_score: float = 15.0,
+    player_name: str | None = None,
+    top_n: int = 100,
+) -> dict[str, Any]:
+    df = _get_game_finder_df(season=season, season_type=season_type)
+    if df.empty:
+        return {"meta": {"season": season, "season_type": season_type, "total": 0}, "data": []}
+
+    merged = _add_breakout_scores(df)
+    result = merged[merged["BREAKOUT_SCORE"] > float(min_breakout_score)]
+
+    if player_name:
+        target_player = _normalize_player_name_for_match(player_name)
+        result = result[result["PLAYER_NAME"].map(_normalize_player_name_for_match) == target_player]
+
+    result = add_game_score(result).sort_values("BREAKOUT_SCORE", ascending=False)
+    result = result.head(max(1, min(int(top_n), 500)))
+
+    return {
+        "meta": {
+            "season": season,
+            "season_type": season_type,
+            "player_name": player_name,
+            "min_breakout_score": float(min_breakout_score),
+            "total": int(len(result)),
+        },
+        "data": _normalize_game_rows(result, include_game_score=True, include_breakout=True),
     }

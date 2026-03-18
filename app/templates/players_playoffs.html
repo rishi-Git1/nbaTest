@@ -4,13 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NBA Players (Playoffs)</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}" />
   </head>
   <body>
     <main>
       <div class="top-row">
         <h1>NBA Players (Playoffs)</h1>
-        <div class="nav-group"><a class="nav-button" href="/">PLAYERS (REGULAR SEASON)</a><a class="nav-button" href="/head-to-head">TEAM HEAD-TO-HEAD</a><a class="nav-button" href="/lineups">LINEUPS</a><a class="nav-button" href="/player-similarity">PLAYER SIMILARITY</a><a class="nav-button" href="/awards-formula">AWARDS FORMULA</a></div>
+        <div class="nav-group"><a class="nav-button" href="/">PLAYERS (REGULAR SEASON)</a><a class="nav-button" href="/head-to-head">TEAM HEAD-TO-HEAD</a><a class="nav-button" href="/lineups">LINEUPS</a><a class="nav-button" href="/player-similarity">PLAYER SIMILARITY</a><a class="nav-button" href="/game-finder">GAME FINDER</a><a class="nav-button" href="/awards-formula">AWARDS FORMULA</a></div>
       </div>
       <p>Sortable playoff stats for active players powered by <code>nba_api</code>.</p>
 
@@ -52,6 +52,6 @@
         </table>
       </div>
     </main>
-    <script src="/static/players_playoffs.js"></script>
+    <script src="{{ url_for('static', path='players_playoffs.js') }}"></script>
   </body>
 </html>

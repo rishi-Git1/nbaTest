@@ -1,7 +1,8 @@
 from fastapi import Body, FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pathlib import Path
 
 from app.models import PlayerStatsResponse
 from app.services import (
@@ -15,14 +16,19 @@ from app.services import (
     get_team_lineups,
     get_lineup_sort_options,
     get_player_similarity,
+    get_games_on_this_day,
+    get_breakout_games,
+    search_games,
     get_team_vs_team,
     get_teams_directory,
     sort_rows,
 )
 
+BASE_DIR = Path(__file__).resolve().parent
+
 app = FastAPI(title="NBA Active Player Stats")
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-templates = Jinja2Templates(directory="app/templates")
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 SORT_LABELS = {
     "player_name": "PLAYER NAME",
@@ -127,6 +133,24 @@ def lineups_page(request: Request):
     )
 
 
+
+
+@app.get("/assets/player-similarity.js")
+def player_similarity_asset():
+    return FileResponse(BASE_DIR / "static" / "player_similarity.js", media_type="application/javascript")
+
+
+@app.get("/game-finder", response_class=HTMLResponse)
+def game_finder_page(request: Request):
+    return templates.TemplateResponse(
+        "game_finder.html",
+        {
+            "request": request,
+            "default_season": get_current_season(),
+            "default_month": 3,
+            "default_day": 17,
+        },
+    )
 
 
 @app.get("/player-similarity", response_class=HTMLResponse)
@@ -243,6 +267,78 @@ def lineups(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"Upstream data fetch failed: {exc}") from exc
+
+
+@app.get("/api/game-finder/search")
+def game_finder_search(
+    season: str = Query(default_factory=get_current_season),
+    season_type: str = Query("Regular Season"),
+    pts_min: int | None = Query(None, ge=0),
+    fg3m_min: int | None = Query(None, ge=0),
+    ast_min: int | None = Query(None, ge=0),
+    reb_min: int | None = Query(None, ge=0),
+    player: str | None = Query(None),
+    date: str | None = Query(None),
+    top_n: int = Query(100, ge=1, le=500),
+):
+    try:
+        return search_games(
+            season=season,
+            season_type=season_type,
+            filters={
+                "pts_min": pts_min,
+                "fg3m_min": fg3m_min,
+                "ast_min": ast_min,
+                "reb_min": reb_min,
+                "player": player,
+                "date": date,
+            },
+            top_n=top_n,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Upstream data fetch failed: {exc}") from exc
+
+
+@app.get("/api/game-finder/on-this-day")
+def game_finder_on_this_day(
+    month: int = Query(..., ge=1, le=12),
+    day: int = Query(..., ge=1, le=31),
+    season_type: str = Query("Regular Season"),
+    years: int = Query(20, ge=1, le=30),
+    top_n: int = Query(50, ge=1, le=500),
+):
+    try:
+        return get_games_on_this_day(month=month, day=day, season_type=season_type, years=years, top_n=top_n)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Upstream data fetch failed: {exc}") from exc
+
+
+@app.get("/api/game-finder/breakouts")
+def game_finder_breakouts(
+    season: str = Query(default_factory=get_current_season),
+    season_type: str = Query("Regular Season"),
+    min_breakout_score: float = Query(15, ge=0),
+    player_name: str | None = Query(None),
+    top_n: int = Query(100, ge=1, le=500),
+):
+    try:
+        return get_breakout_games(
+            season=season,
+            season_type=season_type,
+            min_breakout_score=min_breakout_score,
+            player_name=player_name,
+            top_n=top_n,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Upstream data fetch failed: {exc}") from exc
+
+
 
 
 @app.get("/api/player-similarity")

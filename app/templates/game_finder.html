@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NBA Game Finder</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}" />
+  </head>
+  <body>
+    <main>
+      <div class="top-row">
+        <h1>NBA Game Finder</h1>
+        <div class="nav-group">
+          <a class="nav-button" href="/">PLAYERS</a>
+          <a class="nav-button" href="/players-playoffs">PLAYERS (PLAYOFFS)</a>
+          <a class="nav-button" href="/head-to-head">HEAD-TO-HEAD</a>
+          <a class="nav-button" href="/lineups">LINEUPS</a>
+          <a class="nav-button" href="/player-similarity">PLAYER SIMILARITY</a>
+          <a class="nav-button" href="/game-finder">GAME FINDER</a><a class="nav-button" href="/awards-formula">AWARDS FORMULA</a>
+        </div>
+      </div>
+
+      <p>Search NBA games by stat filters, find top performances on a specific calendar day, and detect breakout games.</p>
+
+      <form id="gf-search-controls">
+        <label>SEASON<input name="season" value="{{ default_season }}" /></label>
+        <label>SEASON TYPE
+          <select name="season_type"><option selected>Regular Season</option><option>Playoffs</option></select>
+        </label>
+        <label>PLAYER (OPTIONAL)<input name="player" placeholder="e.g. Keegan Murray" /></label>
+        <label>DATE (OPTIONAL)<input name="date" type="date" /></label>
+        <label>PTS MIN<input name="pts_min" type="number" min="0" /></label>
+        <label>3PM MIN<input name="fg3m_min" type="number" min="0" /></label>
+        <label>AST MIN<input name="ast_min" type="number" min="0" /></label>
+        <label>REB MIN<input name="reb_min" type="number" min="0" /></label>
+        <button type="submit">SEARCH GAMES</button>
+      </form>
+
+      <form id="gf-on-day-controls">
+        <label>MONTH<input name="month" type="number" min="1" max="12" value="{{ default_month }}" /></label>
+        <label>DAY<input name="day" type="number" min="1" max="31" value="{{ default_day }}" /></label>
+        <label>SEASON TYPE
+          <select name="season_type"><option selected>Regular Season</option><option>Playoffs</option></select>
+        </label>
+        <label>YEARS<input name="years" type="number" min="1" max="30" value="20" /></label>
+        <button type="submit">ON THIS DAY</button>
+      </form>
+
+      <form id="gf-breakout-controls">
+        <label>SEASON<input name="season" value="{{ default_season }}" /></label>
+        <label>SEASON TYPE
+          <select name="season_type"><option selected>Regular Season</option><option>Playoffs</option></select>
+        </label>
+        <label>PLAYER (OPTIONAL)<input name="player_name" placeholder="e.g. Keegan Murray" /></label>
+        <label>MIN BREAKOUT SCORE<input name="min_breakout_score" type="number" step="1" min="0" value="15" /></label>
+        <button type="submit">BREAKOUT GAMES</button>
+      </form>
+
+      <p id="gf-status">Run a search to see game results.</p>
+
+      <div class="table-wrap">
+        <table id="gf-results">
+          <thead>
+            <tr>
+              <th>PLAYER</th><th>DATE</th><th>MATCHUP</th><th>PTS</th><th>REB</th><th>AST</th><th>FGM</th><th>FGA</th><th>FG3M</th><th>GAME SCORE</th><th>BREAKOUT SCORE</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </main>
+
+    <script src="{{ url_for('static', path='game_finder.js') }}"></script>
+  </body>
+</html>

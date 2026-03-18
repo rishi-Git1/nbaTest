@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NBA Player Similarity</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}" />
   </head>
   <body>
     <main>
@@ -15,7 +15,7 @@
           <a class="nav-button" href="/players-playoffs">PLAYERS (PLAYOFFS)</a>
           <a class="nav-button" href="/head-to-head">HEAD-TO-HEAD</a>
           <a class="nav-button" href="/lineups">LINEUPS</a>
-          <a class="nav-button" href="/awards-formula">AWARDS FORMULA</a>
+          <a class="nav-button" href="/game-finder">GAME FINDER</a><a class="nav-button" href="/awards-formula">AWARDS FORMULA</a>
         </div>
       </div>
 
@@ -33,7 +33,7 @@
 
         <label>
           PLAYER NAME
-          <input id="player_name" name="player_name" list="player-options" placeholder="e.g. Luka Doncic" required />
+          <input id="player_name" name="player_name" list="player-options" placeholder="e.g. Luka Doncic" value="Keegan Murray" required />
           <datalist id="player-options"></datalist>
         </label>
 
@@ -83,6 +83,6 @@
       </div>
     </main>
 
-    <script src="/static/player_similarity.js"></script>
+    <script src="{{ url_for('player_similarity_asset') }}"></script>
   </body>
 </html>

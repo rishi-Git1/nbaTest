@@ -18,10 +18,12 @@ This project is a starter NBA stats site powered by [`nba_api`](https://pypi.org
   - Fouls per game
 - Sortable/paginated API endpoint.
 - Minimal frontend table with sort controls.
+- Added a **Players (Playoffs)** page (`/players-playoffs`) with the same controls/table as the players page, backed by playoff-only stats.
 - Players page includes an **Advanced Statistics** mode with additional sortable metrics (e.g., TS%, 3PAr, FTr, ORB%/DRB%/TRB%, AST%/STL%/BLK%/TOV%/USG%, OFF/DEF/NET rating, PIE).
 - Added an **Awards Formula** page (`/awards-formula`) to score players via custom 0-100 metric weights, team rating weight, and award presets (MVP/DPOY/CUSTOM).
 - Added a **Lineups** page (`/lineups`) for current-season team lineup filtering (Top N, minimum minutes together, sortable lineup stats).
 - Added a **Player Similarity** page (`/player-similarity`) that computes weighted cosine similarity using normalized player stats, optional shot-diet features, and optional archetype-only comparisons.
+- Added a **Game Finder** page (`/game-finder`) for custom stat-based game search, “On This Day” results across recent seasons, and breakout game detection.
 - In-memory TTL caching with stale fallback on upstream fetch failure.
 
 ## Run locally (PowerShell, Python 3.13)
@@ -81,6 +83,18 @@ Example:
 curl "http://127.0.0.1:8000/api/players?season=2024-25&sort_by=ppg&order=desc&limit=25"
 ```
 
+
+
+### `GET /api/players-playoffs`
+
+Same query parameters and sorting behavior as `GET /api/players`, but pulls **Playoffs** season type data from `nba_api`.
+
+Example:
+
+```bash
+curl "http://127.0.0.1:8000/api/players-playoffs?season=2024-25&sort_by=ppg&order=desc&limit=25"
+```
+
 ## Caching
 
 - Env var: `NBA_CACHE_TTL_SECONDS` (default `900`)
@@ -130,6 +144,43 @@ Query parameters:
 
 Returns normalized lineup rows with metrics such as MIN, GP, OFF/DEF/NET rating, AST%, REB%, eFG%, TS%, and PIE for the selected team.
 
+
+
+
+### `GET /api/game-finder/search`
+
+Query filters on a season/season type game log:
+
+- `season`
+- `season_type` (`Regular Season` or `Playoffs`)
+- `pts_min`, `fg3m_min`, `ast_min`, `reb_min`
+- `player`
+- `date` (`YYYY-MM-DD`)
+- `top_n`
+
+Returns top matching games sorted by points and game score.
+
+### `GET /api/game-finder/on-this-day`
+
+Find top performances on a calendar day across recent seasons.
+
+- `month`, `day`
+- `season_type`
+- `years` (how many recent seasons to include)
+- `top_n`
+
+Results include computed `game_score`.
+
+### `GET /api/game-finder/breakouts`
+
+Find breakout games where game output significantly exceeds player averages.
+
+- `season`, `season_type`
+- `min_breakout_score`
+- `player_name` (optional)
+- `top_n`
+
+Results include `game_score` and `breakout_score`.
 
 ### `GET /api/player-similarity`
 

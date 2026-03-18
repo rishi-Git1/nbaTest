@@ -224,3 +224,14 @@ td:nth-child(2) {
 .checkbox-label input {
   margin: 0;
 }
+
+
+#gf-search-controls,
+#gf-on-day-controls,
+#gf-breakout-controls {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
