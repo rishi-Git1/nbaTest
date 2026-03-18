@@ -24,6 +24,7 @@ This project is a starter NBA stats site powered by [`nba_api`](https://pypi.org
 - Added a **Lineups** page (`/lineups`) for current-season team lineup filtering (Top N, minimum minutes together, sortable lineup stats).
 - Added a **Player Similarity** page (`/player-similarity`) that computes weighted cosine similarity using normalized player stats, optional shot-diet features, and optional archetype-only comparisons.
 - Added a **Game Finder** page (`/game-finder`) for custom stat-based game search, “On This Day” results across recent seasons, and breakout game detection.
+- Added a **Player Career Stats** page (`/player-career`) for simple player-name lookup with career averages, season-by-season team history, and an advanced stats toggle.
 - In-memory TTL caching with stale fallback on upstream fetch failure.
 
 ## Run locally (PowerShell, Python 3.13)
@@ -196,3 +197,23 @@ Query parameters:
 Response metadata includes `shot_diet_source` (currently `season-stats-proxy`) when shot diet is enabled.
 
 Returns top similar players based on weighted cosine similarity over z-score normalized features (box/advanced stats + optional shot-diet proxy rates for 3PT share, paint share, and midrange share).
+
+### `GET /api/player-directory`
+
+Returns player names/IDs for datalist suggestions.
+
+- `active_only` (`true`/`false`, default `false`)
+
+### `GET /api/player-career`
+
+Query parameters:
+
+- `player_name`
+
+Returns:
+
+- `meta` with resolved player name/ID and season count
+- `career` row with career per-game averages
+- `seasons` rows with season, team, and the same base/advanced stat fields used by the page toggle
+
+This page uses `PlayerCareerStats` for season totals, then derives per-game career averages and merges advanced season metrics from `LeagueDashPlayerStats`.

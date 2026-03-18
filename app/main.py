@@ -12,10 +12,12 @@ from app.services import (
     get_award_metric_groups,
     get_award_presets,
     get_current_season,
+    get_player_career_stats,
+    get_player_directory,
+    get_player_similarity,
     get_recent_seasons,
     get_team_lineups,
     get_lineup_sort_options,
-    get_player_similarity,
     get_games_on_this_day,
     get_breakout_games,
     search_games,
@@ -133,8 +135,6 @@ def lineups_page(request: Request):
     )
 
 
-
-
 @app.get("/assets/player-similarity.js")
 def player_similarity_asset():
     return FileResponse(BASE_DIR / "static" / "player_similarity.js", media_type="application/javascript")
@@ -161,6 +161,17 @@ def player_similarity_page(request: Request):
             "request": request,
             "default_season": get_current_season(),
             "seasons": get_recent_seasons(),
+        },
+    )
+
+
+@app.get("/player-career", response_class=HTMLResponse)
+def player_career_page(request: Request):
+    return templates.TemplateResponse(
+        "player_career.html",
+        {
+            "request": request,
+            "default_player_name": "Keegan Murray",
         },
     )
 
@@ -227,6 +238,23 @@ def list_players_playoffs(
         "data": paged,
     }
 
+
+@app.get("/api/player-directory")
+def player_directory(active_only: bool = Query(False)):
+    try:
+        return {"data": get_player_directory(active_only=active_only)}
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Upstream data fetch failed: {exc}") from exc
+
+
+@app.get("/api/player-career")
+def player_career(player_name: str = Query(..., min_length=2)):
+    try:
+        return get_player_career_stats(player_name=player_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Upstream data fetch failed: {exc}") from exc
 
 
 @app.get("/api/head-to-head")
@@ -339,8 +367,6 @@ def game_finder_breakouts(
         raise HTTPException(status_code=502, detail=f"Upstream data fetch failed: {exc}") from exc
 
 
-
-
 @app.get("/api/player-similarity")
 def player_similarity(
     season: str = Query(default_factory=get_current_season),
@@ -363,7 +389,6 @@ def player_similarity(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"Upstream data fetch failed: {exc}") from exc
-
 
 
 @app.post("/api/awards-formula")

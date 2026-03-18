@@ -235,3 +235,38 @@ td:nth-child(2) {
   flex-wrap: wrap;
   margin-bottom: 12px;
 }
+
+#career-controls {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.career-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.career-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #161b22;
+}
+
+.career-table th,
+.career-table td {
+  padding: 8px;
+  border-bottom: 1px solid #30363d;
+  text-align: right;
+}
+
+.career-table th:first-child,
+.career-table td:first-child,
+.career-table th:nth-child(2),
+.career-table td:nth-child(2) {
+  text-align: left;
+}

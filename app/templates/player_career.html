@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NBA Player Career Stats</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}" />
+  </head>
+  <body>
+    <main>
+      <div class="top-row">
+        <h1>NBA Player Career Stats</h1>
+        <div class="nav-group">
+          <a class="nav-button" href="/">PLAYERS (REGULAR)</a>
+          <a class="nav-button" href="/players-playoffs">PLAYERS (PLAYOFFS)</a>
+          <a class="nav-button" href="/head-to-head">TEAM HEAD-TO-HEAD</a>
+          <a class="nav-button" href="/lineups">LINEUPS</a>
+          <a class="nav-button" href="/player-similarity">PLAYER SIMILARITY</a>
+          <a class="nav-button" href="/game-finder">GAME FINDER</a>
+          <a class="nav-button" href="/awards-formula">AWARDS FORMULA</a>
+        </div>
+      </div>
+      <p>Look up one player, then view career per-game averages and season-by-season stats, including an advanced toggle.</p>
+
+      <form id="career-controls">
+        <label>
+          PLAYER NAME
+          <input id="player_name" name="player_name" list="career-player-options" value="{{ default_player_name }}" autocomplete="off" />
+          <datalist id="career-player-options"></datalist>
+        </label>
+
+        <button type="submit">LOAD CAREER</button>
+        <button type="button" id="career-advanced-toggle">ADVANCED STATISTICS: OFF</button>
+      </form>
+
+      <p id="career-status">Enter a player and load career stats.</p>
+
+      <section id="career-summary" class="career-summary-grid">
+        <div class="card">
+          <h2>CAREER AVERAGES</h2>
+          <div class="table-wrap">
+            <table id="career-summary-table" class="career-table">
+              <thead>
+                <tr id="career-summary-header"></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>SEASON BY SEASON</h2>
+        <div id="career-results-top-scroll" class="top-scrollbar">
+          <div id="career-results-top-scroll-inner"></div>
+        </div>
+        <div id="career-results-wrap" class="table-wrap">
+          <table id="career-results" class="career-table">
+            <thead>
+              <tr id="career-results-header"></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', path='player_career.js') }}"></script>
+  </body>
+</html>

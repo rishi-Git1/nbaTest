@@ -6,7 +6,7 @@ from typing import Any
 
 import pandas as pd
 
-from nba_api.stats.endpoints import leaguegamefinder, leaguedashlineups, leaguedashplayerbiostats, leaguedashplayerstats, leaguedashteamstats
+from nba_api.stats.endpoints import leaguegamefinder, leaguedashlineups, leaguedashplayerbiostats, leaguedashplayerstats, leaguedashteamstats, playercareerstats
 from nba_api.stats.static import players, teams
 
 ALLOWED_SORT_KEYS = {
@@ -253,6 +253,269 @@ def _fetch_team_advanced_stats(season: str) -> list[dict[str, Any]]:
 def _active_players_map() -> dict[int, str]:
     active = players.get_active_players()
     return {int(p["id"]): p["full_name"] for p in active}
+
+
+def get_player_directory(active_only: bool = False) -> list[dict[str, Any]]:
+    source = players.get_active_players() if active_only else players.get_players()
+    directory = [
+        {
+            "player_id": int(player["id"]),
+            "player_name": player["full_name"],
+            "is_active": bool(player.get("is_active", active_only)),
+        }
+        for player in source
+        if player.get("full_name")
+    ]
+    return sorted(directory, key=lambda item: item["player_name"])
+
+
+def _resolve_player_lookup(player_name: str) -> dict[str, Any]:
+    normalized = _normalize_player_name_for_match(player_name)
+    if not normalized:
+        raise ValueError("A player name is required.")
+
+    directory = get_player_directory(active_only=False)
+    exact_match = next((player for player in directory if _normalize_player_name_for_match(player["player_name"]) == normalized), None)
+    if exact_match is not None:
+        return exact_match
+
+    contains_matches = [player for player in directory if normalized in _normalize_player_name_for_match(player["player_name"])]
+    if len(contains_matches) == 1:
+        return contains_matches[0]
+    if len(contains_matches) > 1:
+        suggestions = ", ".join(match["player_name"] for match in contains_matches[:5])
+        raise ValueError(f"Multiple players matched '{player_name}'. Try one of: {suggestions}")
+
+    raise ValueError(f"Player '{player_name}' was not found.")
+
+
+def _safe_int(value: Any) -> int:
+    try:
+        if value is None or value == "":
+            return 0
+        return int(float(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _safe_total_ratio(numerator: float, denominator: float) -> float | None:
+    if denominator == 0:
+        return None
+    return round(numerator / denominator, 3)
+
+
+def _get_player_career_totals(player_id: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+    key = (str(player_id), "player_career_totals")
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+
+    endpoint = playercareerstats.PlayerCareerStats(player_id=player_id, per_mode36="Totals")
+    frames = endpoint.get_data_frames()
+    if len(frames) < 2:
+        raise ValueError("Career stats were unavailable for that player.")
+
+    regular_seasons = frames[0].copy()
+    career_totals = frames[1].copy()
+    cache.set(key, (regular_seasons, career_totals))
+    return regular_seasons, career_totals
+
+
+def _get_advanced_rows_by_season(season: str) -> dict[int, dict[str, Any]]:
+    key = (season, "advanced_rows_by_season")
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+
+    rows = _fetch_advanced_stats(season=season, season_type="Regular Season")
+    payload = {int(row["PLAYER_ID"]): row for row in rows if row.get("PLAYER_ID") is not None}
+    cache.set(key, payload)
+    return payload
+
+
+def _coerce_season_id(value: Any) -> str:
+    season = str(value or "").strip()
+    if len(season) == 5 and season.isdigit():
+        start = int(season[:4])
+        return f"{start}-{str(start + 1)[-2:]}"
+    return season
+
+
+def _prepare_career_season_totals(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        season = _coerce_season_id(row.get("SEASON_ID"))
+        if not season or _safe_int(row.get("GP")) <= 0:
+            continue
+        grouped.setdefault(season, []).append(row)
+
+    prepared: list[dict[str, Any]] = []
+    numeric_fields = ["GP", "MIN", "PTS", "REB", "AST", "STL", "BLK", "FGM", "FGA", "FG3M", "FG3A", "FTM", "FTA", "PF"]
+    for season, season_rows in grouped.items():
+        if len(season_rows) == 1:
+            prepared.append(season_rows[0])
+            continue
+
+        tot_row = next((row for row in season_rows if str(row.get("TEAM_ABBREVIATION") or "").upper() == "TOT"), None)
+        if tot_row is not None:
+            prepared.append(tot_row)
+            continue
+
+        merged = dict(season_rows[0])
+        merged["SEASON_ID"] = season
+        merged["TEAM_ABBREVIATION"] = "/".join(sorted({str(row.get("TEAM_ABBREVIATION") or "").strip() for row in season_rows if row.get("TEAM_ABBREVIATION")})) or None
+        for field in numeric_fields:
+            merged[field] = sum(float(row.get(field) or 0) for row in season_rows)
+        prepared.append(merged)
+
+    return sorted(prepared, key=lambda row: _coerce_season_id(row.get("SEASON_ID")))
+
+
+def _base_season_row_from_totals(row: dict[str, Any]) -> dict[str, Any]:
+    gp = _safe_int(row.get("GP"))
+    minutes = float(row.get("MIN") or 0)
+    fga = float(row.get("FGA") or 0)
+    fg3a = float(row.get("FG3A") or 0)
+    fta = float(row.get("FTA") or 0)
+    pts = float(row.get("PTS") or 0)
+
+    return {
+        "season": _coerce_season_id(row.get("SEASON_ID")),
+        "team": row.get("TEAM_ABBREVIATION") or row.get("TEAM_ID"),
+        "gp": gp,
+        "mpg": _normalize_float(minutes / gp) if gp else None,
+        "ppg": _normalize_float(pts / gp) if gp else None,
+        "rpg": _normalize_float(float(row.get("REB") or 0) / gp) if gp else None,
+        "apg": _normalize_float(float(row.get("AST") or 0) / gp) if gp else None,
+        "spg": _normalize_float(float(row.get("STL") or 0) / gp) if gp else None,
+        "bpg": _normalize_float(float(row.get("BLK") or 0) / gp) if gp else None,
+        "fg_pct": _safe_total_ratio(float(row.get("FGM") or 0), fga),
+        "ft_pct": _safe_total_ratio(float(row.get("FTM") or 0), fta),
+        "three_pt_pct": _safe_total_ratio(float(row.get("FG3M") or 0), fg3a),
+        "pf_pg": _normalize_float(float(row.get("PF") or 0) / gp) if gp else None,
+        "three_par": _safe_total_ratio(fg3a, fga),
+        "ftr": _safe_total_ratio(fta, fga),
+        "ts_pct": _safe_total_ratio(pts, 2 * (fga + 0.44 * fta)),
+        "total_minutes": minutes,
+        "total_fga": fga,
+        "total_fg3a": fg3a,
+        "total_fg3m": float(row.get("FG3M") or 0),
+        "total_fta": fta,
+        "total_points": pts,
+        "total_fgm": float(row.get("FGM") or 0),
+        "total_ftm": float(row.get("FTM") or 0),
+    }
+
+
+def _merge_career_advanced(base_row: dict[str, Any], advanced_row: dict[str, Any] | None) -> dict[str, Any]:
+    merged = {k: v for k, v in base_row.items() if not k.startswith("total_")}
+    adv = advanced_row or {}
+    merged.update(
+        {
+            "off_rating": _normalize_float(adv.get("OFF_RATING")),
+            "def_rating": _normalize_float(adv.get("DEF_RATING")),
+            "net_rating": _normalize_float(adv.get("NET_RATING")),
+            "ast_pct": _normalize_float(adv.get("AST_PCT")),
+            "oreb_pct": _normalize_float(adv.get("OREB_PCT")),
+            "dreb_pct": _normalize_float(adv.get("DREB_PCT")),
+            "reb_pct": _normalize_float(adv.get("REB_PCT")),
+            "stl_pct": _normalize_float(adv.get("STL_PCT")),
+            "blk_pct": _normalize_float(adv.get("BLK_PCT")),
+            "tov_pct": _normalize_float(adv.get("TM_TOV_PCT")),
+            "usg_pct": _normalize_float(adv.get("USG_PCT")),
+            "efg_pct": _normalize_float(adv.get("EFG_PCT")),
+            "pie": _normalize_float(adv.get("PIE")),
+        }
+    )
+    return merged
+
+
+def _weighted_average(values: list[tuple[float | None, float]]) -> float | None:
+    valid = [(value, weight) for value, weight in values if value is not None and weight > 0]
+    if not valid:
+        return None
+    total_weight = sum(weight for _, weight in valid)
+    if total_weight == 0:
+        return None
+    return round(sum(value * weight for value, weight in valid) / total_weight, 3)
+
+
+def get_player_career_stats(player_name: str) -> dict[str, Any]:
+    player = _resolve_player_lookup(player_name)
+    player_id = int(player["player_id"])
+    regular_seasons_df, _career_totals_df = _get_player_career_totals(player_id)
+    if regular_seasons_df.empty:
+        raise ValueError(f"No career regular-season stats found for '{player['player_name']}'.")
+
+    season_rows_raw = _prepare_career_season_totals(regular_seasons_df.to_dict("records"))
+    season_base_rows = [_base_season_row_from_totals(row) for row in season_rows_raw]
+    if not season_base_rows:
+        raise ValueError(f"No career regular-season stats found for '{player['player_name']}'.")
+
+    advanced_maps = {season_row["season"]: _get_advanced_rows_by_season(season_row["season"]) for season_row in season_base_rows}
+    season_rows: list[dict[str, Any]] = []
+    for base_row in season_base_rows:
+        advanced_row = advanced_maps.get(base_row["season"], {}).get(player_id)
+        season_rows.append(_merge_career_advanced(base_row, advanced_row))
+
+    total_gp = sum(row["gp"] or 0 for row in season_base_rows)
+    total_minutes = sum(row.get("total_minutes", 0) for row in season_base_rows)
+    total_fga = sum(row.get("total_fga", 0) for row in season_base_rows)
+    total_fg3a = sum(row.get("total_fg3a", 0) for row in season_base_rows)
+    total_fta = sum(row.get("total_fta", 0) for row in season_base_rows)
+    total_points = sum(row.get("total_points", 0) for row in season_base_rows)
+    total_fgm = sum(row.get("total_fgm", 0) for row in season_base_rows)
+    total_fg3m = sum(row.get("total_fg3m", 0) for row in season_base_rows)
+    total_ftm = sum(row.get("total_ftm", 0) for row in season_base_rows)
+
+    career_team_tokens: list[str] = []
+    has_multi_team_season = False
+    for row in season_base_rows:
+        raw_team = str(row.get("team") or "").strip()
+        if not raw_team:
+            continue
+        upper_team = raw_team.upper()
+        if upper_team == "TOT" or "/" in raw_team:
+            has_multi_team_season = True
+        for token in raw_team.split("/"):
+            cleaned = token.strip().upper()
+            if cleaned and cleaned not in {"TOT", "MULTI"} and cleaned not in career_team_tokens:
+                career_team_tokens.append(cleaned)
+
+    career_team_label = career_team_tokens[0] if len(career_team_tokens) == 1 and not has_multi_team_season else "MULTI"
+    career_base = {
+        "season": "CAREER",
+        "team": career_team_label,
+        "gp": total_gp,
+        "mpg": _normalize_float(total_minutes / total_gp) if total_gp else None,
+        "ppg": _normalize_float(total_points / total_gp) if total_gp else None,
+        "rpg": _weighted_average([(row.get("rpg"), row.get("gp") or 0) for row in season_base_rows]),
+        "apg": _weighted_average([(row.get("apg"), row.get("gp") or 0) for row in season_base_rows]),
+        "spg": _weighted_average([(row.get("spg"), row.get("gp") or 0) for row in season_base_rows]),
+        "bpg": _weighted_average([(row.get("bpg"), row.get("gp") or 0) for row in season_base_rows]),
+        "fg_pct": _safe_total_ratio(total_fgm, total_fga),
+        "ft_pct": _safe_total_ratio(total_ftm, total_fta),
+        "three_pt_pct": _safe_total_ratio(total_fg3m, total_fg3a),
+        "pf_pg": _weighted_average([(row.get("pf_pg"), row.get("gp") or 0) for row in season_base_rows]),
+        "three_par": _safe_total_ratio(total_fg3a, total_fga),
+        "ftr": _safe_total_ratio(total_fta, total_fga),
+        "ts_pct": _safe_total_ratio(total_points, 2 * (total_fga + 0.44 * total_fta)),
+    }
+    career_row = _merge_career_advanced(career_base, None)
+    for key in ["off_rating", "def_rating", "net_rating", "ast_pct", "oreb_pct", "dreb_pct", "reb_pct", "stl_pct", "blk_pct", "tov_pct", "usg_pct", "efg_pct", "pie"]:
+        career_row[key] = _weighted_average([(row.get(key), row.get("gp") or 0) for row in season_rows])
+
+    season_rows = sorted(season_rows, key=lambda row: row.get("season") or "")
+    return {
+        "meta": {
+            "player_id": player_id,
+            "player_name": player["player_name"],
+            "season_count": len(season_rows),
+            "advanced_available": any(row.get("ts_pct") is not None or row.get("off_rating") is not None for row in season_rows),
+        },
+        "career": career_row,
+        "seasons": season_rows,
+    }
 
 
 
