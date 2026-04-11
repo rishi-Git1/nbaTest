@@ -1517,23 +1517,27 @@ def _normalize_boxscore_advanced_v3(player_stats: pd.DataFrame, team_stats: pd.D
 def _fetch_boxscore_traditional(game_id: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     try:
         endpoint = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id)
-        frames = endpoint.get_data_frames()
-        return frames[0].copy(), frames[1].copy()
+        player_df = endpoint.player_stats.get_data_frame().copy()
+        team_df = endpoint.team_stats.get_data_frame().copy()
+        return player_df, team_df
     except Exception:
         endpoint = boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id)
-        frames = endpoint.get_data_frames()
-        return _normalize_boxscore_traditional_v3(frames[0], frames[1])
+        player_df = endpoint.player_stats.get_data_frame().copy()
+        team_df = endpoint.team_stats.get_data_frame().copy()
+        return _normalize_boxscore_traditional_v3(player_df, team_df)
 
 
 def _fetch_boxscore_advanced(game_id: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     try:
         endpoint = boxscoreadvancedv2.BoxScoreAdvancedV2(game_id=game_id)
-        frames = endpoint.get_data_frames()
-        return frames[0].copy(), frames[1].copy()
+        player_df = endpoint.player_stats.get_data_frame().copy()
+        team_df = endpoint.team_stats.get_data_frame().copy()
+        return player_df, team_df
     except Exception:
         endpoint = boxscoreadvancedv3.BoxScoreAdvancedV3(game_id=game_id)
-        frames = endpoint.get_data_frames()
-        return _normalize_boxscore_advanced_v3(frames[0], frames[1])
+        player_df = endpoint.player_stats.get_data_frame().copy()
+        team_df = endpoint.team_stats.get_data_frame().copy()
+        return _normalize_boxscore_advanced_v3(player_df, team_df)
 
 
 def _game_explainer_winner(value1: Any, value2: Any, lower_is_better: bool) -> str:
@@ -1549,7 +1553,7 @@ def _game_explainer_winner(value1: Any, value2: Any, lower_is_better: bool) -> s
 def _normalize_game_explainer_team_rows(team_stats: pd.DataFrame, adv_team: pd.DataFrame) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     merged = team_stats.merge(adv_team, on=["TEAM_ID"], how="left", suffixes=("", "_ADV"))
     if merged.empty or len(merged.index) < 2:
-        raise ValueError("Team box score data was unavailable for that game.")
+        raise ValueError("Team box score data was unavailable for that game. This usually means the game has no published full box score yet.")
 
     team_rows = []
     for _, row in merged.iterrows():
