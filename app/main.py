@@ -72,8 +72,9 @@ SORT_LABELS = {
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     return templates.TemplateResponse(
-        "index.html",
-        {
+        request=request,
+        name="index.html",
+        context={
             "request": request,
             "default_season": get_current_season(),
             "sort_options": [{"key": key, "label": SORT_LABELS.get(key, key.upper())} for key in sorted(ALLOWED_SORT_KEYS)],
@@ -84,8 +85,9 @@ def index(request: Request):
 @app.get("/players-playoffs", response_class=HTMLResponse)
 def players_playoffs_page(request: Request):
     return templates.TemplateResponse(
-        "players_playoffs.html",
-        {
+        request=request,
+        name="players_playoffs.html",
+        context={
             "request": request,
             "default_season": get_current_season(),
             "sort_options": [{"key": key, "label": SORT_LABELS.get(key, key.upper())} for key in sorted(ALLOWED_SORT_KEYS)],
@@ -98,8 +100,9 @@ def head_to_head_page(request: Request):
     default_season = get_current_season()
     seasons = get_recent_seasons()
     return templates.TemplateResponse(
-        "head_to_head.html",
-        {
+        request=request,
+        name="head_to_head.html",
+        context={
             "request": request,
             "default_season": default_season,
             "seasons": seasons,
@@ -111,8 +114,9 @@ def head_to_head_page(request: Request):
 @app.get("/awards-formula", response_class=HTMLResponse)
 def awards_formula_page(request: Request):
     return templates.TemplateResponse(
-        "awards_formula.html",
-        {
+        request=request,
+        name="awards_formula.html",
+        context={
             "request": request,
             "default_season": get_current_season(),
             "seasons": get_recent_seasons(),
@@ -128,8 +132,9 @@ def awards_formula_page(request: Request):
 @app.get("/lineup/", response_class=HTMLResponse)
 def lineups_page(request: Request):
     return templates.TemplateResponse(
-        "lineups.html",
-        {
+        request=request,
+        name="lineups.html",
+        context={
             "request": request,
             "default_season": get_current_season(),
             "teams": get_teams_directory(),
@@ -146,8 +151,9 @@ def player_similarity_asset():
 @app.get("/game-finder", response_class=HTMLResponse)
 def game_finder_page(request: Request):
     return templates.TemplateResponse(
-        "game_finder.html",
-        {
+        request=request,
+        name="game_finder.html",
+        context={
             "request": request,
             "default_season": get_current_season(),
             "default_month": 3,
@@ -160,8 +166,9 @@ def game_finder_page(request: Request):
 def game_explainer_page(request: Request):
     default_season = get_current_season()
     return templates.TemplateResponse(
-        "game_explainer.html",
-        {
+        request=request,
+        name="game_explainer.html",
+        context={
             "request": request,
             "default_season": default_season,
             "seasons": get_recent_seasons(),
@@ -174,8 +181,9 @@ def game_explainer_page(request: Request):
 @app.get("/player-similarity", response_class=HTMLResponse)
 def player_similarity_page(request: Request):
     return templates.TemplateResponse(
-        "player_similarity.html",
-        {
+        request=request,
+        name="player_similarity.html",
+        context={
             "request": request,
             "default_season": get_current_season(),
             "seasons": get_recent_seasons(),
@@ -186,8 +194,9 @@ def player_similarity_page(request: Request):
 @app.get("/player-career", response_class=HTMLResponse)
 def player_career_page(request: Request):
     return templates.TemplateResponse(
-        "player_career.html",
-        {
+        request=request,
+        name="player_career.html",
+        context={
             "request": request,
             "default_player_name": "Keegan Murray",
         },
